@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -13,9 +12,6 @@ export async function PATCH(
   if (typeof body?.phone === "string") data.phone = body.phone.trim();
   if (typeof body?.role === "string") data.role = body.role;
   if (typeof body?.status === "string") data.status = body.status;
-  if (typeof body?.pin === "string" && body.pin.length >= 4) {
-    data.pinHash = await bcrypt.hash(body.pin, 10);
-  }
 
   const driver = await prisma.driver.update({
     where: { id },

@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
   if (!qrToken) {
     return NextResponse.json({ error: "Thiếu mã QR xe" }, { status: 400 });
   }
+  const paymentMethod =
+    body?.paymentMethod === "cash" || body?.paymentMethod === "transfer" ? body.paymentMethod : null;
 
   await closeExpiredTrips();
 
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
         autoCheckoutAt: null,
         amount,
         status: "active",
+        paymentMethod,
       },
       include: { vehicle: { include: { type: true } } },
     });
@@ -82,6 +85,7 @@ export async function POST(req: NextRequest) {
       autoCheckoutAt,
       amount,
       status: "active",
+      paymentMethod,
     },
     include: { vehicle: { include: { type: true } } },
   });

@@ -9,9 +9,16 @@ interface Trip {
   id: string;
   amount: number;
   status: string;
+  paymentMethod: string | null;
   checkInTime: string;
   autoCheckoutAt: string | null;
   vehicle: { code: string; type: { name: string } };
+}
+
+type PaymentMethod = "cash" | "transfer";
+
+function paymentLabel(method: string | null) {
+  return method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "-";
 }
 
 function formatMoney(amount: number) {
@@ -31,6 +38,8 @@ export default function DriverPage() {
   const [todayTrips, setTodayTrips] = useState<Trip[]>([]);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -51,7 +60,7 @@ export default function DriverPage() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  async function checkin(qrToken: string) {
+  async function checkin(qrToken: string, method: PaymentMethod) {
     if (!qrToken) return;
     setLoading(true);
     setMessage(null);
@@ -59,7 +68,7 @@ export default function DriverPage() {
       const res = await fetch("/api/trips/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qrToken }),
+        body: JSON.stringify({ qrToken, paymentMethod: method }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -69,7 +78,10 @@ export default function DriverPage() {
       setMessage(
         data.action === "checkout"
           ? { type: "success", text: `Đã trả xe ${data.vehicle.code} - ${formatMoney(data.amount)}` }
-          : { type: "success", text: `Đã nhận xe ${data.vehicle.code} - ${formatMoney(data.amount)}` }
+          : {
+              type: "success",
+              text: `Đã nhận xe ${data.vehicle.code} - ${formatMoney(data.amount)} (${paymentLabel(method)})`,
+            }
       );
       setScanning(false);
       setManualToken("");
@@ -79,6 +91,25 @@ export default function DriverPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Nếu tài xế đã chọn sẵn hình thức thanh toán (chọn nhanh) thì check-in ngay.
+  // Nếu chưa chọn, mở modal bắt buộc chọn trước khi hoàn tất.
+  function handleToken(qrToken: string) {
+    if (!qrToken) return;
+    if (paymentMethod) {
+      checkin(qrToken, paymentMethod);
+    } else {
+      setPendingToken(qrToken);
+    }
+  }
+
+  function confirmPendingPayment(method: PaymentMethod) {
+    setPaymentMethod(method);
+    if (pendingToken) {
+      checkin(pendingToken, method);
+    }
+    setPendingToken(null);
   }
 
   async function handleLogout() {
@@ -107,6 +138,34 @@ export default function DriverPage() {
       <section className="rounded-lg border border-border bg-white p-4">
         <h2 className="mb-3 font-medium">Lấy xe</h2>
 
+        <div className="mb-3">
+          <p className="mb-1.5 text-sm text-foreground/60">
+            Khách trả bằng (chọn trước cho nhanh, có thể bỏ qua):
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPaymentMethod(paymentMethod === "cash" ? null : "cash")}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                paymentMethod === "cash"
+                  ? "border-success bg-success text-white"
+                  : "border-border hover:bg-hover"
+              }`}
+            >
+              Tiền mặt
+            </button>
+            <button
+              onClick={() => setPaymentMethod(paymentMethod === "transfer" ? null : "transfer")}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                paymentMethod === "transfer"
+                  ? "border-info bg-info text-white"
+                  : "border-border hover:bg-hover"
+              }`}
+            >
+              Chuyển khoản
+            </button>
+          </div>
+        </div>
+
         {!scanning ? (
           <button
             onClick={() => setScanning(true)}
@@ -116,7 +175,7 @@ export default function DriverPage() {
           </button>
         ) : (
           <div className="flex flex-col gap-3">
-            <QrScanner active={scanning} onScan={checkin} />
+            <QrScanner active={scanning} onScan={handleToken} />
             <button
               onClick={() => setScanning(false)}
               className="w-full rounded-md border border-border px-4 py-2 text-sm hover:bg-hover"
@@ -134,7 +193,7 @@ export default function DriverPage() {
             className="flex-1 rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info"
           />
           <button
-            onClick={() => checkin(manualToken)}
+            onClick={() => handleToken(manualToken)}
             disabled={loading}
             className="rounded-md border border-border px-3 py-2 text-sm hover:bg-hover disabled:opacity-50"
           >
@@ -184,7 +243,9 @@ export default function DriverPage() {
                   <p className="text-sm font-medium">
                     {idx + 1}. Xe {trip.vehicle.code} | {formatTime(trip.checkInTime)}
                   </p>
-                  <p className="text-sm text-foreground/60">{formatMoney(trip.amount)}</p>
+                  <p className="text-sm text-foreground/60">
+                    {formatMoney(trip.amount)} · {paymentLabel(trip.paymentMethod)}
+                  </p>
                 </div>
                 <span
                   className={
@@ -209,6 +270,35 @@ export default function DriverPage() {
           Tổng hôm nay: {formatMoney(todayTotal)}
         </p>
       </section>
+
+      {pendingToken && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xs rounded-lg bg-white p-6">
+            <h3 className="mb-1 text-lg font-semibold">Khách trả bằng gì?</h3>
+            <p className="mb-4 text-sm text-foreground/60">Chọn hình thức thanh toán để hoàn tất nhận xe.</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => confirmPendingPayment("cash")}
+                className="rounded-md bg-success px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
+              >
+                Tiền mặt
+              </button>
+              <button
+                onClick={() => confirmPendingPayment("transfer")}
+                className="rounded-md bg-info px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
+              >
+                Chuyển khoản
+              </button>
+              <button
+                onClick={() => setPendingToken(null)}
+                className="mt-1 rounded-md border border-border px-4 py-2 text-sm hover:bg-hover"
+              >
+                Huỷ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

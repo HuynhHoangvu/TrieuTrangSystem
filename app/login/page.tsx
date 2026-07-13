@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
-  const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +17,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, pin }),
+        body: JSON.stringify({ phone }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -53,17 +52,7 @@ export default function LoginPage() {
           className="mb-4 w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-info"
           placeholder="09xxxxxxxx"
           required
-        />
-
-        <label className="mb-1 block text-sm font-medium">Mã PIN</label>
-        <input
-          type="password"
-          inputMode="numeric"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-info"
-          placeholder="****"
-          required
+          autoFocus
         />
 
         {error && (

@@ -20,11 +20,8 @@ export default function AdminDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [pin, setPin] = useState("");
   const [role, setRole] = useState("driver");
   const [error, setError] = useState<string | null>(null);
-  const [resetPinFor, setResetPinFor] = useState<string | null>(null);
-  const [resetPinValue, setResetPinValue] = useState("");
 
   async function load() {
     const res = await fetch("/api/admin/drivers");
@@ -41,7 +38,7 @@ export default function AdminDriversPage() {
     const res = await fetch("/api/admin/drivers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone, pin, role }),
+      body: JSON.stringify({ name, phone, role }),
     });
     if (!res.ok) {
       setError((await res.json()).error);
@@ -49,7 +46,6 @@ export default function AdminDriversPage() {
     }
     setName("");
     setPhone("");
-    setPin("");
     setRole("driver");
     load();
   }
@@ -74,40 +70,12 @@ export default function AdminDriversPage() {
     load();
   }
 
-  async function submitResetPin(id: string) {
-    if (resetPinValue.length < 4) return;
-    await fetch(`/api/admin/drivers/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: resetPinValue }),
-    });
-    setResetPinFor(null);
-    setResetPinValue("");
-  }
-
-  function ResetPinRow({ id }: { id: string }) {
-    if (resetPinFor !== id) return null;
-    return (
-      <div className="mt-2 flex gap-2">
-        <input
-          value={resetPinValue}
-          onChange={(e) => setResetPinValue(e.target.value)}
-          placeholder="PIN mới"
-          className="w-24 rounded-md border border-border px-2 py-1 text-sm"
-        />
-        <button
-          onClick={() => submitResetPin(id)}
-          className="rounded-md bg-foreground px-2 py-1 text-xs text-white"
-        >
-          Lưu
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Tài xế</h1>
+      <p className="text-sm text-foreground/60">
+        Đăng nhập chỉ cần số điện thoại, không cần mã PIN.
+      </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <section className="rounded-lg border border-border bg-white p-4">
@@ -129,17 +97,10 @@ export default function AdminDriversPage() {
                 <button onClick={() => toggleStatus(d)} className="text-sm text-info">
                   {d.status === "active" ? "Vô hiệu hoá" : "Kích hoạt"}
                 </button>
-                <button
-                  onClick={() => setResetPinFor(resetPinFor === d.id ? null : d.id)}
-                  className="text-sm text-info"
-                >
-                  Đặt lại PIN
-                </button>
                 <button onClick={() => deleteDriver(d.id)} className="text-sm text-red-600">
                   Xoá
                 </button>
               </div>
-              <ResetPinRow id={d.id} />
             </div>
           ))}
         </div>
@@ -167,29 +128,20 @@ export default function AdminDriversPage() {
                     {d.status === "active" ? "Hoạt động" : "Vô hiệu hoá"}
                   </span>
                 </td>
-                <td className="py-2">
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => toggleStatus(d)}
-                        className="text-sm text-info hover:underline"
-                      >
-                        {d.status === "active" ? "Vô hiệu hoá" : "Kích hoạt"}
-                      </button>
-                      <button
-                        onClick={() => setResetPinFor(resetPinFor === d.id ? null : d.id)}
-                        className="text-sm text-info hover:underline"
-                      >
-                        Đặt lại PIN
-                      </button>
-                      <button
-                        onClick={() => deleteDriver(d.id)}
-                        className="text-sm text-red-600 hover:underline"
-                      >
-                        Xoá
-                      </button>
-                    </div>
-                    <ResetPinRow id={d.id} />
+                <td className="py-2 text-right">
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => toggleStatus(d)}
+                      className="text-sm text-info hover:underline"
+                    >
+                      {d.status === "active" ? "Vô hiệu hoá" : "Kích hoạt"}
+                    </button>
+                    <button
+                      onClick={() => deleteDriver(d.id)}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Xoá
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -211,13 +163,6 @@ export default function AdminDriversPage() {
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Số điện thoại"
             className="rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info sm:w-40"
-            required
-          />
-          <input
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            placeholder="Mã PIN"
-            className="rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info sm:w-28"
             required
           />
           <select
