@@ -28,3 +28,17 @@ export async function PATCH(
   const trip = await prisma.trip.update({ where: { id }, data });
   return NextResponse.json(trip);
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (session.role !== "admin") {
+    return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  await prisma.trip.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

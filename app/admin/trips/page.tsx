@@ -105,6 +105,12 @@ export default function AdminTripsPage() {
     loadTrips();
   }
 
+  async function deleteTrip(id: string) {
+    if (!confirm("Xoá vĩnh viễn lượt chạy này? Không thể hoàn tác.")) return;
+    await fetch(`/api/trips/${id}`, { method: "DELETE" });
+    loadTrips();
+  }
+
   const total = trips
     .filter((t) => t.status !== "cancelled")
     .reduce((sum, t) => sum + t.amount, 0);
@@ -204,7 +210,7 @@ export default function AdminTripsPage() {
                     <p className="mt-1 text-sm">
                       {formatMoney(t.amount)} · {paymentLabel(t.paymentMethod)}
                     </p>
-                    <div className="mt-2 flex gap-4">
+                    <div className="mt-2 flex flex-wrap gap-4">
                       <button onClick={() => startEdit(t)} className="text-sm text-info">
                         Sửa
                       </button>
@@ -213,6 +219,9 @@ export default function AdminTripsPage() {
                           Huỷ lượt
                         </button>
                       )}
+                      <button onClick={() => deleteTrip(t.id)} className="text-sm text-red-600">
+                        Xoá
+                      </button>
                     </div>
                   </>
                 )}
@@ -309,6 +318,12 @@ export default function AdminTripsPage() {
                             Huỷ lượt
                           </button>
                         )}
+                        <button
+                          onClick={() => deleteTrip(t.id)}
+                          className="text-sm text-red-600 hover:underline"
+                        >
+                          Xoá
+                        </button>
                       </div>
                     )}
                   </td>
