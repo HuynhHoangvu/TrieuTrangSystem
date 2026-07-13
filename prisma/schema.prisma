@@ -1,0 +1,75 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model VehicleType {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  pricePerTrip Int
+  // "timed": lượt tự động chốt sau tripDurationMinutes (ATV/mô tô)
+  // "manual": không giới hạn thời gian, chốt lượt khi quét lại đúng xe đó (ô tô/Land Cruiser)
+  durationMode String    @default("timed")
+  vehicles     Vehicle[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Vehicle {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  typeId        String
+  type          VehicleType @relation(fields: [typeId], references: [id])
+  priceOverride Int?
+  status        String      @default("available")
+  qrToken       String      @unique
+  trips         Trip[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Driver {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  pinHash   String
+  role      String   @default("driver")
+  status    String   @default("active")
+  trips     Trip[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemConfig {
+  id                  String  @id @default("singleton")
+  tripDurationMinutes Int     @default(20)
+  allowEarlyRescan    Boolean @default(true)
+}
+
+model Trip {
+  id             String    @id @default(cuid())
+  vehicleId      String
+  vehicle        Vehicle   @relation(fields: [vehicleId], references: [id])
+  driverId       String
+  driver         Driver    @relation(fields: [driverId], references: [id])
+  checkInTime    DateTime  @default(now())
+  autoCheckoutAt DateTime?
+  checkOutTime   DateTime?
+  status         String    @default("active")
+  paymentMethod  String?
+  amount         Int
+  note           String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([driverId])
+  @@index([vehicleId])
+}
