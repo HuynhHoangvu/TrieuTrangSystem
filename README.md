@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TrieuTrangSystem — Quản lý xe địa hình bãi biển
 
-## Getting Started
+Hệ thống quản lý xe địa hình (ATV, mô tô, ô tô/Land Cruiser) cho dịch vụ cho thuê xe bãi biển: quét QR nhận/trả xe, tự động chốt lượt và tính tiền, dashboard doanh thu, quản lý xe/tài xế/cấu hình.
 
-First, run the development server:
+## Nghiệp vụ chính
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Xe tính giờ** (ATV, mô tô): quét QR lấy xe → hệ thống tự đếm ngược và chốt lượt sau X phút (cấu hình được), quét lại trước khi hết giờ sẽ mở thêm lượt mới.
+- **Xe chạy thoải mái** (ô tô/Land Cruiser): quét QR lần 1 = nhận xe, quét lần 2 trên cùng xe đó = trả xe (chốt lượt), không giới hạn thời gian.
+- Trang Admin: quản lý xe & loại xe (giá, chế độ thời gian), tạo hàng loạt xe + mã QR để in dán, quản lý tài xế, cấu hình hệ thống, quản lý/sửa/huỷ lượt chạy, dashboard doanh thu theo ngày/tuần/tháng/tài xế/xe.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Công nghệ
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Next.js 16 (App Router) + TypeScript + Tailwind CSS
+- Prisma ORM + PostgreSQL
+- iron-session (đăng nhập số điện thoại + mã PIN)
+- html5-qrcode (quét QR camera), qrcode (tạo QR để in)
+- node-cron (tự động chốt lượt quá hạn)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Chạy local
 
-## Learn More
+1. Tạo file `.env` với `DATABASE_URL` (Postgres) và `SESSION_SECRET`.
+2. Cài đặt & khởi tạo:
+   ```bash
+   npm install
+   npx prisma migrate dev
+   npx prisma db seed
+   npm run dev
+   ```
+3. Mở `http://localhost:3000`.
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Build production tự chạy `prisma generate && prisma migrate deploy && next build` — chỉ cần cấu hình `DATABASE_URL` và `SESSION_SECRET` trên nền tảng hosting (VD: Vercel + Neon/Supabase Postgres).
