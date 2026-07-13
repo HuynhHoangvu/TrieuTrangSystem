@@ -22,6 +22,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Thiếu mã xe hoặc loại xe" }, { status: 400 });
   }
 
+  const existing = await prisma.vehicle.findUnique({ where: { code } });
+  if (existing) {
+    return NextResponse.json({ error: `Mã xe "${code}" đã tồn tại` }, { status: 409 });
+  }
+
   const vehicle = await prisma.vehicle.create({
     data: { code, typeId, priceOverride, qrToken: code },
   });

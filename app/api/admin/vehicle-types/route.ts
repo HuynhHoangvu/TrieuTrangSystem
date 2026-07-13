@@ -19,6 +19,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dữ liệu không hợp lệ" }, { status: 400 });
   }
 
+  const existing = await prisma.vehicleType.findUnique({ where: { name } });
+  if (existing) {
+    return NextResponse.json({ error: `Loại xe "${name}" đã tồn tại` }, { status: 409 });
+  }
+
   const type = await prisma.vehicleType.create({ data: { name, pricePerTrip, durationMode } });
   return NextResponse.json(type);
 }

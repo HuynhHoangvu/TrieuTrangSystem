@@ -28,6 +28,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Thiếu tên hoặc số điện thoại" }, { status: 400 });
   }
 
+  const existing = await prisma.driver.findUnique({ where: { phone } });
+  if (existing) {
+    return NextResponse.json({ error: `Số điện thoại "${phone}" đã được đăng ký` }, { status: 409 });
+  }
+
   // Đăng nhập chỉ dùng số điện thoại, không cần PIN — lưu một giá trị ngẫu
   // nhiên vì cột pinHash trong schema vẫn yêu cầu NOT NULL.
   const pinHash = await bcrypt.hash(crypto.randomUUID(), 10);
