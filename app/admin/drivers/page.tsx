@@ -10,6 +10,12 @@ interface Driver {
   status: string;
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  driver: "Tài xế",
+  receptionist: "Lễ tân",
+  admin: "Quản trị",
+};
+
 export default function AdminDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [name, setName] = useState("");
@@ -79,13 +85,67 @@ export default function AdminDriversPage() {
     setResetPinValue("");
   }
 
+  function ResetPinRow({ id }: { id: string }) {
+    if (resetPinFor !== id) return null;
+    return (
+      <div className="mt-2 flex gap-2">
+        <input
+          value={resetPinValue}
+          onChange={(e) => setResetPinValue(e.target.value)}
+          placeholder="PIN mới"
+          className="w-24 rounded-md border border-border px-2 py-1 text-sm"
+        />
+        <button
+          onClick={() => submitResetPin(id)}
+          className="rounded-md bg-foreground px-2 py-1 text-xs text-white"
+        >
+          Lưu
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Tài xế</h1>
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <section className="rounded-lg border border-border bg-white p-4">
-        <div className="mb-4 overflow-x-auto">
+        {/* Mobile: cards */}
+        <div className="mb-4 flex flex-col gap-3 md:hidden">
+          {drivers.map((d) => (
+            <div key={d.id} className="rounded-md border border-border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium">{d.name}</p>
+                  <p className="text-sm text-foreground/60">{d.phone}</p>
+                </div>
+                <span className={`text-sm ${d.status === "active" ? "text-success" : "text-disabled"}`}>
+                  {d.status === "active" ? "Hoạt động" : "Vô hiệu hoá"}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-foreground/60">{ROLE_LABEL[d.role] ?? d.role}</p>
+              <div className="mt-2 flex flex-wrap gap-4">
+                <button onClick={() => toggleStatus(d)} className="text-sm text-info">
+                  {d.status === "active" ? "Vô hiệu hoá" : "Kích hoạt"}
+                </button>
+                <button
+                  onClick={() => setResetPinFor(resetPinFor === d.id ? null : d.id)}
+                  className="text-sm text-info"
+                >
+                  Đặt lại PIN
+                </button>
+                <button onClick={() => deleteDriver(d.id)} className="text-sm text-red-600">
+                  Xoá
+                </button>
+              </div>
+              <ResetPinRow id={d.id} />
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="mb-4 hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-foreground/60">
@@ -101,7 +161,7 @@ export default function AdminDriversPage() {
               <tr key={d.id} className="border-t border-border align-top">
                 <td className="py-2">{d.name}</td>
                 <td className="py-2">{d.phone}</td>
-                <td className="py-2">{d.role}</td>
+                <td className="py-2">{ROLE_LABEL[d.role] ?? d.role}</td>
                 <td className="py-2">
                   <span className={d.status === "active" ? "text-success" : "text-disabled"}>
                     {d.status === "active" ? "Hoạt động" : "Vô hiệu hoá"}
@@ -129,22 +189,7 @@ export default function AdminDriversPage() {
                         Xoá
                       </button>
                     </div>
-                    {resetPinFor === d.id && (
-                      <div className="flex gap-2">
-                        <input
-                          value={resetPinValue}
-                          onChange={(e) => setResetPinValue(e.target.value)}
-                          placeholder="PIN mới"
-                          className="w-24 rounded-md border border-border px-2 py-1 text-sm"
-                        />
-                        <button
-                          onClick={() => submitResetPin(d.id)}
-                          className="rounded-md bg-foreground px-2 py-1 text-xs text-white"
-                        >
-                          Lưu
-                        </button>
-                      </div>
-                    )}
+                    <ResetPinRow id={d.id} />
                   </div>
                 </td>
               </tr>
@@ -153,7 +198,7 @@ export default function AdminDriversPage() {
         </table>
         </div>
 
-        <form onSubmit={addDriver} className="flex flex-wrap gap-2">
+        <form onSubmit={addDriver} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -165,14 +210,14 @@ export default function AdminDriversPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Số điện thoại"
-            className="w-40 rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info"
+            className="rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info sm:w-40"
             required
           />
           <input
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             placeholder="Mã PIN"
-            className="w-28 rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info"
+            className="rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info sm:w-28"
             required
           />
           <select

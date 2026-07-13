@@ -32,6 +32,10 @@ function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("vi-VN");
 }
 
+function paymentLabel(method: string | null) {
+  return method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "-";
+}
+
 const STATUS_LABEL: Record<string, { text: string; className: string }> = {
   active: { text: "Đang chạy", className: "text-active" },
   completed: { text: "Hoàn thành", className: "text-success" },
@@ -105,11 +109,41 @@ export default function AdminTripsPage() {
     .filter((t) => t.status !== "cancelled")
     .reduce((sum, t) => sum + t.amount, 0);
 
+  function EditFields({ trip }: { trip: Trip }) {
+    return (
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input
+          value={editAmount}
+          onChange={(e) => setEditAmount(e.target.value)}
+          type="number"
+          className="rounded-md border border-border px-2 py-1.5 text-sm sm:w-28"
+        />
+        <select
+          value={editPaymentMethod}
+          onChange={(e) => setEditPaymentMethod(e.target.value)}
+          className="rounded-md border border-border px-2 py-1.5 text-sm"
+        >
+          <option value="">-</option>
+          <option value="cash">Tiền mặt</option>
+          <option value="transfer">Chuyển khoản</option>
+        </select>
+        <div className="flex gap-3">
+          <button onClick={() => saveEdit(trip.id)} className="text-sm text-success">
+            Lưu
+          </button>
+          <button onClick={() => setEditingId(null)} className="text-sm text-foreground/60">
+            Huỷ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Lượt chạy</h1>
 
-      <div className="flex flex-wrap gap-2 rounded-lg border border-border bg-white p-4">
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-white p-4 sm:flex-row sm:flex-wrap">
         <input
           type="date"
           value={date}
@@ -143,7 +177,55 @@ export default function AdminTripsPage() {
       </div>
 
       <section className="rounded-lg border border-border bg-white p-4">
-        <div className="overflow-x-auto">
+        {/* Mobile: cards */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {trips.map((t) => {
+            const status = STATUS_LABEL[t.status] ?? STATUS_LABEL.active;
+            const isEditing = editingId === t.id;
+            return (
+              <div key={t.id} className="rounded-md border border-border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {t.vehicle.code} <span className="text-foreground/60">({t.vehicle.type.name})</span>
+                    </p>
+                    <p className="text-sm text-foreground/60">{t.driver.name}</p>
+                  </div>
+                  <span className={`text-sm ${status.className}`}>{status.text}</span>
+                </div>
+                <p className="mt-1 text-sm text-foreground/60">{formatDateTime(t.checkInTime)}</p>
+
+                {isEditing ? (
+                  <div className="mt-2">
+                    <EditFields trip={t} />
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-1 text-sm">
+                      {formatMoney(t.amount)} · {paymentLabel(t.paymentMethod)}
+                    </p>
+                    <div className="mt-2 flex gap-4">
+                      <button onClick={() => startEdit(t)} className="text-sm text-info">
+                        Sửa
+                      </button>
+                      {t.status !== "cancelled" && (
+                        <button onClick={() => cancelTrip(t.id)} className="text-sm text-red-600">
+                          Huỷ lượt
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {trips.length === 0 && (
+            <p className="py-4 text-center text-sm text-foreground/60">Không có lượt chạy nào</p>
+          )}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-foreground/60">
@@ -190,12 +272,8 @@ export default function AdminTripsPage() {
                         <option value="cash">Tiền mặt</option>
                         <option value="transfer">Chuyển khoản</option>
                       </select>
-                    ) : t.paymentMethod === "cash" ? (
-                      "Tiền mặt"
-                    ) : t.paymentMethod === "transfer" ? (
-                      "Chuyển khoản"
                     ) : (
-                      "-"
+                      paymentLabel(t.paymentMethod)
                     )}
                   </td>
                   <td className={`py-2 ${status.className}`}>{status.text}</td>
@@ -239,10 +317,10 @@ export default function AdminTripsPage() {
             })}
           </tbody>
         </table>
-        </div>
         {trips.length === 0 && (
           <p className="py-4 text-center text-sm text-foreground/60">Không có lượt chạy nào</p>
         )}
+        </div>
         <p className="mt-4 border-t border-border pt-3 text-right font-medium">
           Tổng: {formatMoney(total)}
         </p>

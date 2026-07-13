@@ -71,18 +71,14 @@ export default function AdminDashboardPage() {
               {data.byDriver.length === 0 ? (
                 <p className="text-sm text-foreground/60">Chưa có dữ liệu</p>
               ) : (
-                <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <tbody>
-                    {data.byDriver.map((d) => (
-                      <tr key={d.driverId} className="border-t border-border">
-                        <td className="py-2">{d.name}</td>
-                        <td className="py-2 text-right text-foreground/60">{d.trips} lượt</td>
-                        <td className="py-2 text-right font-medium">{formatMoney(d.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="flex flex-col divide-y divide-border">
+                  {data.byDriver.map((d) => (
+                    <div key={d.driverId} className="flex items-center justify-between gap-2 py-2 text-sm">
+                      <span className="truncate">{d.name}</span>
+                      <span className="shrink-0 text-foreground/60">{d.trips} lượt</span>
+                      <span className="shrink-0 font-medium">{formatMoney(d.amount)}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
@@ -92,20 +88,16 @@ export default function AdminDashboardPage() {
               {data.byVehicle.length === 0 ? (
                 <p className="text-sm text-foreground/60">Chưa có dữ liệu</p>
               ) : (
-                <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <tbody>
-                    {data.byVehicle.map((v) => (
-                      <tr key={v.vehicleId} className="border-t border-border">
-                        <td className="py-2">
-                          {v.code} ({v.type})
-                        </td>
-                        <td className="py-2 text-right text-foreground/60">{v.trips} lượt</td>
-                        <td className="py-2 text-right font-medium">{formatMoney(v.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="flex flex-col divide-y divide-border">
+                  {data.byVehicle.map((v) => (
+                    <div key={v.vehicleId} className="flex items-center justify-between gap-2 py-2 text-sm">
+                      <span className="truncate">
+                        {v.code} ({v.type})
+                      </span>
+                      <span className="shrink-0 text-foreground/60">{v.trips} lượt</span>
+                      <span className="shrink-0 font-medium">{formatMoney(v.amount)}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
