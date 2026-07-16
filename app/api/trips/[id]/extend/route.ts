@@ -24,7 +24,7 @@ export async function POST(
 
   const trip = await prisma.trip.findUnique({
     where: { id },
-    include: { vehicle: { include: { type: true } } },
+    include: { vehicle: { include: { type: { include: { passengerPrices: true } } } } },
   });
   if (!trip) {
     return NextResponse.json({ error: "Không tìm thấy lượt chạy" }, { status: 404 });
@@ -40,7 +40,24 @@ export async function POST(
   }
 
   const config = await getSystemConfig();
-  const basePrice = trip.vehicle.priceOverride ?? trip.vehicle.type.pricePerTrip;
+
+  // Xe tính giá theo số người (VD ATV): phải dùng đúng bậc giá theo số
+  // người của lượt này (VD đi 1 người thì lấy giá 1 người), không phải
+  // giá cơ bản/dự phòng chung của loại xe.
+  let basePrice: number;
+  if (trip.vehicle.type.pricingMode === "passengers" && trip.vehicle.priceOverride === null) {
+    const tier = trip.vehicle.type.passengerPrices.find((t) => t.passengers === trip.passengers);
+    if (!tier) {
+      return NextResponse.json(
+        { error: "Không xác định được giá theo số người cho lượt này" },
+        { status: 409 }
+      );
+    }
+    basePrice = tier.price;
+  } else {
+    basePrice = trip.vehicle.priceOverride ?? trip.vehicle.type.pricePerTrip;
+  }
+
   const extraAmount = Math.round((basePrice / config.tripDurationMinutes) * minutes);
   const newAutoCheckoutAt = new Date(trip.autoCheckoutAt.getTime() + minutes * 60_000);
 

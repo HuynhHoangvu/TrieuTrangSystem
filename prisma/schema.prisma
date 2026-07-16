@@ -67,6 +67,8 @@ model SystemConfig {
   id                  String  @id @default("singleton")
   tripDurationMinutes Int     @default(20)
   allowEarlyRescan    Boolean @default(true)
+  // Số phút cộng thêm mỗi lần bấm nút "+X phút" (giá cộng thêm tự tính tỉ lệ theo tripDurationMinutes)
+  extendMinutes       Int     @default(10)
 }
 
 model Trip {

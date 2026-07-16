@@ -20,6 +20,13 @@ export async function PATCH(req: NextRequest) {
   if (typeof body?.allowEarlyRescan === "boolean") {
     data.allowEarlyRescan = body.allowEarlyRescan;
   }
+  if (body?.extendMinutes !== undefined) {
+    const extendMinutes = Number(body.extendMinutes);
+    if (!Number.isFinite(extendMinutes) || extendMinutes <= 0) {
+      return NextResponse.json({ error: "Số phút cộng thêm không hợp lệ" }, { status: 400 });
+    }
+    data.extendMinutes = extendMinutes;
+  }
 
   await getSystemConfig();
   const config = await prisma.systemConfig.update({ where: { id: "singleton" }, data });

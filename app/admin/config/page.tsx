@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export default function AdminConfigPage() {
   const [tripDurationMinutes, setTripDurationMinutes] = useState(20);
   const [allowEarlyRescan, setAllowEarlyRescan] = useState(true);
+  const [extendMinutes, setExtendMinutes] = useState(10);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -14,6 +15,7 @@ export default function AdminConfigPage() {
       .then((data) => {
         setTripDurationMinutes(data.tripDurationMinutes);
         setAllowEarlyRescan(data.allowEarlyRescan);
+        setExtendMinutes(data.extendMinutes ?? 10);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -24,7 +26,7 @@ export default function AdminConfigPage() {
     await fetch("/api/admin/config", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tripDurationMinutes, allowEarlyRescan }),
+      body: JSON.stringify({ tripDurationMinutes, allowEarlyRescan, extendMinutes }),
     });
     setSaved(true);
   }
@@ -47,6 +49,20 @@ export default function AdminConfigPage() {
           onChange={(e) => setTripDurationMinutes(Number(e.target.value))}
           className="mb-4 w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info"
         />
+
+        <label className="mb-1 block text-sm font-medium">
+          Số phút cộng thêm mỗi lần bấm &quot;+X phút&quot;
+        </label>
+        <input
+          type="number"
+          min={1}
+          value={extendMinutes}
+          onChange={(e) => setExtendMinutes(Number(e.target.value))}
+          className="mb-1 w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info"
+        />
+        <p className="mb-4 text-xs text-foreground/60">
+          Tiền cộng thêm tự tính theo tỉ lệ giá xe / thời lượng mỗi lượt, không cần cấu hình riêng.
+        </p>
 
         <label className="mb-4 flex items-center gap-2 text-sm">
           <input

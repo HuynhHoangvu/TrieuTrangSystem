@@ -57,6 +57,7 @@ export default function DriverPage() {
   const [extendingTrip, setExtendingTrip] = useState<Trip | null>(null);
   const [extendLoading, setExtendLoading] = useState(false);
   const [passengerPrompt, setPassengerPrompt] = useState<PassengerPrompt | null>(null);
+  const [extendMinutes, setExtendMinutes] = useState(10);
 
   const loadData = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -73,6 +74,9 @@ export default function DriverPage() {
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => data && setDriverName(data.name));
+    fetch("/api/config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setExtendMinutes(data.extendMinutes ?? 10));
     loadData();
     const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
@@ -149,7 +153,7 @@ export default function DriverPage() {
       await fetch(`/api/trips/${extendingTrip.id}/extend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minutes: 10, ...(method ? { paymentMethod: method } : {}) }),
+        body: JSON.stringify({ minutes: extendMinutes, ...(method ? { paymentMethod: method } : {}) }),
       });
       setExtendingTrip(null);
       await loadData();
@@ -301,7 +305,7 @@ export default function DriverPage() {
                       onClick={() => setExtendingTrip(trip)}
                       className="rounded-md border border-border bg-white px-2 py-1 text-xs font-medium hover:bg-hover"
                     >
-                      +10 phút
+                      +{extendMinutes} phút
                     </button>
                   </div>
                 ) : (
@@ -408,6 +412,50 @@ export default function DriverPage() {
                 onClick={() => setPassengerPrompt(null)}
                 disabled={loading}
                 className="mt-1 rounded-md border border-border px-4 py-2 text-sm hover:bg-hover disabled:opacity-50"
+              >
+                Huỷ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {extendingTrip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !extendLoading && setExtendingTrip(null)}
+        >
+          <div className="w-full max-w-xs rounded-lg bg-white p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-lg font-semibold">Cộng thêm {extendMinutes} phút</h3>
+            <p className="mb-4 text-sm text-foreground/60">
+              Xe {extendingTrip.vehicle.code} — khách trả thêm tiền bằng gì?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => confirmExtend("cash")}
+                disabled={extendLoading}
+                className="rounded-md bg-success px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Tiền mặt
+              </button>
+              <button
+                onClick={() => confirmExtend("transfer")}
+                disabled={extendLoading}
+                className="rounded-md bg-info px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Chuyển khoản
+              </button>
+              <button
+                onClick={() => confirmExtend()}
+                disabled={extendLoading}
+                className="rounded-md border border-border px-4 py-2 text-sm hover:bg-hover disabled:opacity-50"
+              >
+                Giữ nguyên phương thức đã chọn
+              </button>
+              <button
+                onClick={() => setExtendingTrip(null)}
+                disabled={extendLoading}
+                className="mt-1 text-sm text-foreground/60"
               >
                 Huỷ
               </button>

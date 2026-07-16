@@ -68,6 +68,7 @@ export default function AdminTripsPage() {
   const [editPaymentMethod, setEditPaymentMethod] = useState("");
   const [extendingTrip, setExtendingTrip] = useState<Trip | null>(null);
   const [extendLoading, setExtendLoading] = useState(false);
+  const [extendMinutes, setExtendMinutes] = useState(10);
 
   async function loadTrips() {
     const params = new URLSearchParams();
@@ -87,6 +88,9 @@ export default function AdminTripsPage() {
     fetch("/api/admin/vehicles")
       .then((r) => r.json())
       .then(setVehicles);
+    fetch("/api/admin/config")
+      .then((r) => r.json())
+      .then((data) => setExtendMinutes(data.extendMinutes ?? 10));
   }, []);
 
   useEffect(() => {
@@ -138,7 +142,7 @@ export default function AdminTripsPage() {
       await fetch(`/api/trips/${extendingTrip.id}/extend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minutes: 10, ...(method ? { paymentMethod: method } : {}) }),
+        body: JSON.stringify({ minutes: extendMinutes, ...(method ? { paymentMethod: method } : {}) }),
       });
       setExtendingTrip(null);
       await loadTrips();
@@ -198,7 +202,7 @@ export default function AdminTripsPage() {
               onClick={() => setExtendingTrip(trip)}
               className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
             >
-              +10 phút
+              +{extendMinutes} phút
             </button>
           </div>
         </div>
@@ -450,7 +454,7 @@ export default function AdminTripsPage() {
             className="w-full max-w-xs rounded-lg bg-white p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-1 text-lg font-semibold">Cộng thêm 10 phút</h3>
+            <h3 className="mb-1 text-lg font-semibold">Cộng thêm {extendMinutes} phút</h3>
             <p className="mb-4 text-sm text-foreground/60">
               Xe {extendingTrip.vehicle.code} — khách trả thêm tiền bằng gì?
             </p>
