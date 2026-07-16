@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CountdownTimer from "@/components/CountdownTimer";
 
 interface Trip {
   id: string;
@@ -24,16 +25,26 @@ interface Vehicle {
   code: string;
 }
 
+type PaymentMethod = "cash" | "transfer";
+
 function formatMoney(amount: number) {
   return amount.toLocaleString("vi-VN") + "đ";
 }
 
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("vi-VN");
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("vi-VN");
+}
+
+function formatTimeOnly(iso: string) {
+  return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 
 function paymentLabel(method: string | null) {
   return method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "-";
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 const STATUS_LABEL: Record<string, { text: string; className: string }> = {
@@ -46,16 +57,20 @@ export default function AdminTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
   const [driverId, setDriverId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState("");
   const [editPaymentMethod, setEditPaymentMethod] = useState("");
+  const [extendingTrip, setExtendingTrip] = useState<Trip | null>(null);
+  const [extendLoading, setExtendLoading] = useState(false);
 
   async function loadTrips() {
     const params = new URLSearchParams();
-    if (date) params.set("date", date);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
     if (driverId) params.set("driverId", driverId);
     if (vehicleId) params.set("vehicleId", vehicleId);
     const res = await fetch(`/api/trips?${params.toString()}`);
@@ -73,8 +88,10 @@ export default function AdminTripsPage() {
 
   useEffect(() => {
     loadTrips();
+    const interval = setInterval(loadTrips, 20000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, driverId, vehicleId]);
+  }, [dateFrom, dateTo, driverId, vehicleId]);
 
   function startEdit(trip: Trip) {
     setEditingId(trip.id);
@@ -111,6 +128,22 @@ export default function AdminTripsPage() {
     loadTrips();
   }
 
+  async function confirmExtend(method?: PaymentMethod) {
+    if (!extendingTrip) return;
+    setExtendLoading(true);
+    try {
+      await fetch(`/api/trips/${extendingTrip.id}/extend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minutes: 10, ...(method ? { paymentMethod: method } : {}) }),
+      });
+      setExtendingTrip(null);
+      await loadTrips();
+    } finally {
+      setExtendLoading(false);
+    }
+  }
+
   const total = trips
     .filter((t) => t.status !== "cancelled")
     .reduce((sum, t) => sum + t.amount, 0);
@@ -145,45 +178,76 @@ export default function AdminTripsPage() {
     );
   }
 
+  function ActiveTimer({ trip }: { trip: Trip }) {
+    if (!trip.autoCheckoutAt) return null;
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadTrips} />
+        <button
+          onClick={() => setExtendingTrip(trip)}
+          className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
+        >
+          +10 phút
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Lượt chạy</h1>
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border bg-white p-4 sm:flex-row sm:flex-wrap">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-border px-3 py-2 text-sm"
-        />
-        <select
-          value={driverId}
-          onChange={(e) => setDriverId(e.target.value)}
-          className="rounded-md border border-border px-3 py-2 text-sm"
-        >
-          <option value="">Tất cả tài xế</option>
-          {drivers.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={vehicleId}
-          onChange={(e) => setVehicleId(e.target.value)}
-          className="rounded-md border border-border px-3 py-2 text-sm"
-        >
-          <option value="">Tất cả xe</option>
-          {vehicles.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.code}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-white p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs text-foreground/60">Từ ngày</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs text-foreground/60">Đến ngày</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <select
+            value={driverId}
+            onChange={(e) => setDriverId(e.target.value)}
+            className="rounded-md border border-border px-3 py-2 text-sm"
+          >
+            <option value="">Tất cả tài xế</option>
+            {drivers.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={vehicleId}
+            onChange={(e) => setVehicleId(e.target.value)}
+            className="rounded-md border border-border px-3 py-2 text-sm"
+          >
+            <option value="">Tất cả xe</option>
+            {vehicles.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.code}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <section className="rounded-lg border border-border bg-white p-4">
-        {/* Mobile: cards */}
+        {/* Mobile: cards (ưu tiên chính) */}
         <div className="flex flex-col gap-3 md:hidden">
           {trips.map((t) => {
             const status = STATUS_LABEL[t.status] ?? STATUS_LABEL.active;
@@ -199,7 +263,10 @@ export default function AdminTripsPage() {
                   </div>
                   <span className={`text-sm ${status.className}`}>{status.text}</span>
                 </div>
-                <p className="mt-1 text-sm text-foreground/60">{formatDateTime(t.checkInTime)}</p>
+                <p className="mt-1 text-sm text-foreground/60">
+                  {formatDate(t.checkInTime)} · {formatTimeOnly(t.checkInTime)}
+                </p>
+                {t.status === "active" && <ActiveTimer trip={t} />}
 
                 {isEditing ? (
                   <div className="mt-2">
@@ -240,7 +307,8 @@ export default function AdminTripsPage() {
             <tr className="text-left text-foreground/60">
               <th className="pb-2">Xe</th>
               <th className="pb-2">Tài xế</th>
-              <th className="pb-2">Giờ vào</th>
+              <th className="pb-2">Ngày</th>
+              <th className="pb-2">Giờ</th>
               <th className="pb-2">Giá</th>
               <th className="pb-2">Thanh toán</th>
               <th className="pb-2">Trạng thái</th>
@@ -257,7 +325,11 @@ export default function AdminTripsPage() {
                     {t.vehicle.code} ({t.vehicle.type.name})
                   </td>
                   <td className="py-2">{t.driver.name}</td>
-                  <td className="py-2">{formatDateTime(t.checkInTime)}</td>
+                  <td className="py-2">{formatDate(t.checkInTime)}</td>
+                  <td className="py-2">
+                    {formatTimeOnly(t.checkInTime)}
+                    {t.status === "active" && <ActiveTimer trip={t} />}
+                  </td>
                   <td className="py-2">
                     {isEditing ? (
                       <input
@@ -340,6 +412,53 @@ export default function AdminTripsPage() {
           Tổng: {formatMoney(total)}
         </p>
       </section>
+
+      {extendingTrip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !extendLoading && setExtendingTrip(null)}
+        >
+          <div
+            className="w-full max-w-xs rounded-lg bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-1 text-lg font-semibold">Cộng thêm 10 phút</h3>
+            <p className="mb-4 text-sm text-foreground/60">
+              Xe {extendingTrip.vehicle.code} — khách trả thêm tiền bằng gì?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => confirmExtend("cash")}
+                disabled={extendLoading}
+                className="rounded-md bg-success px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Tiền mặt
+              </button>
+              <button
+                onClick={() => confirmExtend("transfer")}
+                disabled={extendLoading}
+                className="rounded-md bg-info px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Chuyển khoản
+              </button>
+              <button
+                onClick={() => confirmExtend()}
+                disabled={extendLoading}
+                className="rounded-md border border-border px-4 py-2 text-sm hover:bg-hover disabled:opacity-50"
+              >
+                Giữ nguyên phương thức đã chọn
+              </button>
+              <button
+                onClick={() => setExtendingTrip(null)}
+                disabled={extendLoading}
+                className="mt-1 text-sm text-foreground/60"
+              >
+                Huỷ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

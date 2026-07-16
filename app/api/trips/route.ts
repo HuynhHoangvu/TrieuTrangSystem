@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   const driverIdParam = searchParams.get("driverId");
   const vehicleId = searchParams.get("vehicleId");
 
@@ -27,7 +29,14 @@ export async function GET(req: NextRequest) {
 
   if (vehicleId) where.vehicleId = vehicleId;
 
-  if (date) {
+  if (from || to) {
+    const start = from ? new Date(`${from}T00:00:00`) : undefined;
+    const end = to ? new Date(`${to}T23:59:59.999`) : undefined;
+    where.checkInTime = {
+      ...(start ? { gte: start } : {}),
+      ...(end ? { lte: end } : {}),
+    };
+  } else if (date) {
     const start = new Date(`${date}T00:00:00`);
     const end = new Date(`${date}T23:59:59.999`);
     where.checkInTime = { gte: start, lte: end };
