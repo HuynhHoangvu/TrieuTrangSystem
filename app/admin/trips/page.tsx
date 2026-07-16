@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CountdownTimer from "@/components/CountdownTimer";
+import { updateClockOffsetFromResponse } from "@/lib/clockSync";
 
 interface Trip {
   id: string;
@@ -74,6 +75,7 @@ export default function AdminTripsPage() {
     if (driverId) params.set("driverId", driverId);
     if (vehicleId) params.set("vehicleId", vehicleId);
     const res = await fetch(`/api/trips?${params.toString()}`);
+    updateClockOffsetFromResponse(res);
     setTrips(await res.json());
   }
 
@@ -178,19 +180,24 @@ export default function AdminTripsPage() {
     );
   }
 
-  function ActiveTimer({ trip }: { trip: Trip }) {
-    if (!trip.autoCheckoutAt) return null;
-    return (
-      <div className="mt-1 flex items-center gap-2">
-        <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadTrips} />
-        <button
-          onClick={() => setExtendingTrip(trip)}
-          className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
-        >
-          +10 phút
-        </button>
-      </div>
-    );
+  function EndTimeCell({ trip }: { trip: Trip }) {
+    if (trip.status === "active") {
+      if (!trip.autoCheckoutAt) {
+        return <span className="text-sm text-active">Thoải mái</span>;
+      }
+      return (
+        <div className="flex items-center gap-2">
+          <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadTrips} />
+          <button
+            onClick={() => setExtendingTrip(trip)}
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
+          >
+            +10 phút
+          </button>
+        </div>
+      );
+    }
+    return <span>{trip.checkOutTime ? formatTimeOnly(trip.checkOutTime) : "-"}</span>;
   }
 
   return (
@@ -263,10 +270,15 @@ export default function AdminTripsPage() {
                   </div>
                   <span className={`text-sm ${status.className}`}>{status.text}</span>
                 </div>
-                <p className="mt-1 text-sm text-foreground/60">
-                  {formatDate(t.checkInTime)} · {formatTimeOnly(t.checkInTime)}
-                </p>
-                {t.status === "active" && <ActiveTimer trip={t} />}
+                <p className="mt-1 text-sm text-foreground/60">{formatDate(t.checkInTime)}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <span className="text-foreground/60">
+                    Bắt đầu <span className="text-foreground">{formatTimeOnly(t.checkInTime)}</span>
+                  </span>
+                  <span className="flex items-center gap-1 text-foreground/60">
+                    Kết thúc <EndTimeCell trip={t} />
+                  </span>
+                </div>
 
                 {isEditing ? (
                   <div className="mt-2">
@@ -308,7 +320,8 @@ export default function AdminTripsPage() {
               <th className="pb-2">Xe</th>
               <th className="pb-2">Tài xế</th>
               <th className="pb-2">Ngày</th>
-              <th className="pb-2">Giờ</th>
+              <th className="pb-2">Giờ bắt đầu</th>
+              <th className="pb-2">Giờ kết thúc</th>
               <th className="pb-2">Giá</th>
               <th className="pb-2">Thanh toán</th>
               <th className="pb-2">Trạng thái</th>
@@ -326,9 +339,9 @@ export default function AdminTripsPage() {
                   </td>
                   <td className="py-2">{t.driver.name}</td>
                   <td className="py-2">{formatDate(t.checkInTime)}</td>
+                  <td className="py-2">{formatTimeOnly(t.checkInTime)}</td>
                   <td className="py-2">
-                    {formatTimeOnly(t.checkInTime)}
-                    {t.status === "active" && <ActiveTimer trip={t} />}
+                    <EndTimeCell trip={t} />
                   </td>
                   <td className="py-2">
                     {isEditing ? (

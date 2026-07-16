@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { correctedNow } from "@/lib/clockSync";
 
 function formatRemaining(ms: number) {
   if (ms <= 0) return "00:00";
@@ -17,13 +18,13 @@ export default function CountdownTimer({
   autoCheckoutAt: string;
   onExpire?: () => void;
 }) {
-  const [remainingMs, setRemainingMs] = useState(() => new Date(autoCheckoutAt).getTime() - Date.now());
+  const [remainingMs, setRemainingMs] = useState(() => new Date(autoCheckoutAt).getTime() - correctedNow());
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     const target = new Date(autoCheckoutAt).getTime();
     const tick = () => {
-      const diff = target - Date.now();
+      const diff = target - correctedNow();
       setRemainingMs(diff);
       if (diff <= 0 && !expired) {
         setExpired(true);

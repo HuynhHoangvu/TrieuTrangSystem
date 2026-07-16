@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import QrScanner from "@/components/QrScanner";
 import CountdownTimer from "@/components/CountdownTimer";
+import { updateClockOffsetFromResponse } from "@/lib/clockSync";
 
 interface Trip {
   id: string;
@@ -47,6 +48,7 @@ export default function DriverPage() {
       fetch("/api/trips/active"),
       fetch(`/api/trips?date=${today}`),
     ]);
+    updateClockOffsetFromResponse(activeRes);
     if (activeRes.ok) setActiveTrips(await activeRes.json());
     if (todayRes.ok) setTodayTrips(await todayRes.json());
   }, []);
