@@ -52,6 +52,7 @@ export default function DriverPage() {
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [passengerCount, setPassengerCount] = useState<number>(2);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [extendingTrip, setExtendingTrip] = useState<Trip | null>(null);
   const [extendLoading, setExtendLoading] = useState(false);
@@ -120,12 +121,14 @@ export default function DriverPage() {
     checkin(passengerPrompt.qrToken, passengerPrompt.method, passengers);
   }
 
-  // Nếu tài xế đã chọn sẵn hình thức thanh toán (chọn nhanh) thì check-in ngay.
-  // Nếu chưa chọn, mở modal bắt buộc chọn trước khi hoàn tất.
+  // Nếu tài xế đã chọn sẵn hình thức thanh toán (chọn nhanh) thì check-in ngay
+  // (kèm số người đã chọn sẵn, mặc định 2). Nếu chưa chọn thanh toán, mở modal
+  // bắt buộc chọn trước khi hoàn tất. Nếu xe cần số người khác với đã chọn sẵn,
+  // server sẽ báo lại và modal chọn số người sẽ tự hiện ra.
   function handleToken(qrToken: string) {
     if (!qrToken) return;
     if (paymentMethod) {
-      checkin(qrToken, paymentMethod);
+      checkin(qrToken, paymentMethod, passengerCount);
     } else {
       setPendingToken(qrToken);
     }
@@ -134,7 +137,7 @@ export default function DriverPage() {
   function confirmPendingPayment(method: PaymentMethod) {
     setPaymentMethod(method);
     if (pendingToken) {
-      checkin(pendingToken, method);
+      checkin(pendingToken, method, passengerCount);
     }
     setPendingToken(null);
   }
@@ -205,6 +208,34 @@ export default function DriverPage() {
               }`}
             >
               Chuyển khoản
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <p className="mb-1.5 text-sm text-foreground/60">
+            Số người (áp dụng cho xe tính theo số người, VD ATV):
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPassengerCount(1)}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                passengerCount === 1
+                  ? "border-foreground bg-foreground text-white"
+                  : "border-border hover:bg-hover"
+              }`}
+            >
+              1 người
+            </button>
+            <button
+              onClick={() => setPassengerCount(2)}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
+                passengerCount === 2
+                  ? "border-foreground bg-foreground text-white"
+                  : "border-border hover:bg-hover"
+              }`}
+            >
+              2 người
             </button>
           </div>
         </div>

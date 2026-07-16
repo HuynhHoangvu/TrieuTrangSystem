@@ -12,6 +12,7 @@ interface Trip {
   checkInTime: string;
   checkOutTime: string | null;
   autoCheckoutAt: string | null;
+  passengers: number | null;
   driver: { id: string; name: string };
   vehicle: { code: string; type: { name: string } };
 }
@@ -299,6 +300,7 @@ export default function AdminTripsPage() {
                   <>
                     <p className="mt-1 text-sm">
                       {formatMoney(t.amount)} · {paymentLabel(t.paymentMethod)}
+                      {t.passengers ? ` · ${t.passengers} người` : ""}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-4">
                       <button onClick={() => startEdit(t)} className="text-sm text-info">
@@ -334,6 +336,7 @@ export default function AdminTripsPage() {
               <th className="pb-2">Giờ bắt đầu</th>
               <th className="pb-2">Giờ kết thúc</th>
               <th className="pb-2">Giá</th>
+              <th className="pb-2">Số người</th>
               <th className="pb-2">Thanh toán</th>
               <th className="pb-2">Trạng thái</th>
               <th className="pb-2" />
@@ -366,6 +369,7 @@ export default function AdminTripsPage() {
                       formatMoney(t.amount)
                     )}
                   </td>
+                  <td className="py-2">{t.passengers ?? "-"}</td>
                   <td className="py-2">
                     {isEditing ? (
                       <select
