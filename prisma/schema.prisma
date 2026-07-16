@@ -79,6 +79,10 @@ model SystemConfig {
   allowEarlyRescan    Boolean @default(true)
   // Số phút cộng thêm mỗi lần bấm nút "+X phút" (giá cộng thêm tự tính tỉ lệ theo tripDurationMinutes)
   extendMinutes       Int     @default(10)
+  // Thông tin ngân hàng để tự sinh mã VietQR khi khách chuyển khoản
+  bankId              String? // mã ngân hàng theo VietQR, VD "MB", "VCB", "970422"...
+  bankAccountNumber   String?
+  bankAccountName     String?
 }
 
 model Trip {

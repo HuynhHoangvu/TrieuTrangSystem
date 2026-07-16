@@ -40,15 +40,6 @@ function durationModeLabel(mode: string) {
   return mode === "manual" ? "Thoải mái (quét lại để trả xe)" : "Tính giờ (tự chốt lượt)";
 }
 
-function tiersSummary(options: PriceOption[]) {
-  if (options.length === 0) return "Chưa có mức giá";
-  return options
-    .slice()
-    .sort((a, b) => (a.passengers ?? -1) - (b.passengers ?? -1))
-    .map((o) => `${o.label}: ${formatMoney(o.price)}`)
-    .join(" · ");
-}
-
 export default function AdminVehiclesPage() {
   const [types, setTypes] = useState<VehicleType[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -56,10 +47,10 @@ export default function AdminVehiclesPage() {
   const [newTypePrice, setNewTypePrice] = useState("");
   const [newTypeDurationMode, setNewTypeDurationMode] = useState("timed");
   const [newTypePricingMode, setNewTypePricingMode] = useState("flat");
-  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
-  const [editTypePrice, setEditTypePrice] = useState("");
-  const [editTypeDurationMode, setEditTypeDurationMode] = useState("timed");
-  const [editTypePricingMode, setEditTypePricingMode] = useState("flat");
+  const [drafts, setDrafts] = useState<
+    Record<string, { price: string; durationMode: string; pricingMode: string }>
+  >({});
+  const [savedTypeId, setSavedTypeId] = useState<string | null>(null);
   const [tierLabel, setTierLabel] = useState("");
   const [tierPassengers, setTierPassengers] = useState("");
   const [tierPrice, setTierPrice] = useState("");
@@ -94,6 +85,29 @@ export default function AdminVehiclesPage() {
     loadAll();
   }, []);
 
+  // Mỗi loại xe luôn ở trạng thái sửa được trực tiếp (không cần bấm "Sửa").
+  // Chỉ khởi tạo bản nháp cho loại xe mới xuất hiện, không ghi đè lên bản
+  // nháp đang chỉnh dở khi loadAll() chạy lại vì lý do khác (thêm xe...).
+  useEffect(() => {
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const t of types) {
+        if (!next[t.id]) {
+          next[t.id] = {
+            price: String(t.pricePerTrip),
+            durationMode: t.durationMode,
+            pricingMode: t.pricingMode,
+          };
+        }
+      }
+      return next;
+    });
+  }, [types]);
+
+  function updateDraft(id: string, patch: Partial<{ price: string; durationMode: string; pricingMode: string }>) {
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
   async function addType(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -118,33 +132,25 @@ export default function AdminVehiclesPage() {
     loadAll();
   }
 
-  function startEditType(t: VehicleType) {
-    setEditingTypeId(t.id);
-    setEditTypePrice(String(t.pricePerTrip));
-    setEditTypeDurationMode(t.durationMode);
-    setEditTypePricingMode(t.pricingMode);
-    setTierLabel("");
-    setTierPassengers("");
-    setTierPrice("");
-    setTierAllowExtend(true);
-  }
-
   async function saveEditType(id: string) {
     setError(null);
+    const draft = drafts[id];
+    if (!draft) return;
     const res = await fetch(`/api/admin/vehicle-types/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        pricePerTrip: Number(editTypePrice),
-        durationMode: editTypeDurationMode,
-        pricingMode: editTypePricingMode,
+        pricePerTrip: Number(draft.price),
+        durationMode: draft.durationMode,
+        pricingMode: draft.pricingMode,
       }),
     });
     if (!res.ok) {
       setError((await res.json()).error);
       return;
     }
-    setEditingTypeId(null);
+    setSavedTypeId(id);
+    setTimeout(() => setSavedTypeId((cur) => (cur === id ? null : cur)), 2000);
     loadAll();
   }
 
@@ -399,191 +405,133 @@ export default function AdminVehiclesPage() {
       <section className="rounded-lg border border-border bg-white p-4">
         <h2 className="mb-3 font-medium">Loại xe</h2>
 
-        {/* Mobile: cards */}
+        {/* Mobile: cards - luôn sửa được trực tiếp */}
         <div className="mb-4 flex flex-col gap-3 md:hidden">
           {types.map((t) => {
-            const isEditing = editingTypeId === t.id;
+            const draft = drafts[t.id] ?? {
+              price: String(t.pricePerTrip),
+              durationMode: t.durationMode,
+              pricingMode: t.pricingMode,
+            };
             return (
               <div key={t.id} className="rounded-md border border-border p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium">{t.name}</p>
                   <span className="shrink-0 text-xs text-foreground/60">{t._count.vehicles} xe</span>
                 </div>
-                {isEditing ? (
-                  <div className="mt-2 flex flex-col gap-2">
-                    <input
-                      value={editTypePrice}
-                      onChange={(e) => setEditTypePrice(e.target.value)}
-                      type="number"
-                      placeholder="Giá cơ bản/dự phòng"
-                      className="rounded-md border border-border px-2 py-1.5 text-sm"
-                    />
-                    <select
-                      value={editTypeDurationMode}
-                      onChange={(e) => setEditTypeDurationMode(e.target.value)}
-                      className="rounded-md border border-border px-2 py-1.5 text-sm"
+                <div className="mt-2 flex flex-col gap-2">
+                  <input
+                    value={draft.price}
+                    onChange={(e) => updateDraft(t.id, { price: e.target.value })}
+                    type="number"
+                    placeholder="Giá cơ bản/dự phòng"
+                    className="rounded-md border border-border px-2 py-1.5 text-sm"
+                  />
+                  <select
+                    value={draft.durationMode}
+                    onChange={(e) => updateDraft(t.id, { durationMode: e.target.value })}
+                    className="rounded-md border border-border px-2 py-1.5 text-sm"
+                  >
+                    <option value="timed">Tính giờ (tự chốt lượt)</option>
+                    <option value="manual">Thoải mái (quét lại để trả xe)</option>
+                  </select>
+                  <select
+                    value={draft.pricingMode}
+                    onChange={(e) => updateDraft(t.id, { pricingMode: e.target.value })}
+                    className="rounded-md border border-border px-2 py-1.5 text-sm"
+                  >
+                    <option value="flat">Giá cố định</option>
+                    <option value="passengers">Giá theo số người</option>
+                  </select>
+                  {draft.pricingMode === "passengers" && <TierEditor type={t} />}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => saveEditType(t.id)}
+                      className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
                     >
-                      <option value="timed">Tính giờ (tự chốt lượt)</option>
-                      <option value="manual">Thoải mái (quét lại để trả xe)</option>
-                    </select>
-                    <select
-                      value={editTypePricingMode}
-                      onChange={(e) => setEditTypePricingMode(e.target.value)}
-                      className="rounded-md border border-border px-2 py-1.5 text-sm"
-                    >
-                      <option value="flat">Giá cố định</option>
-                      <option value="passengers">Giá theo số người</option>
-                    </select>
-                    {editTypePricingMode === "passengers" && <TierEditor type={t} />}
-                    <div className="flex gap-3">
-                      <button onClick={() => saveEditType(t.id)} className="text-sm text-success">
-                        Lưu
-                      </button>
-                      <button onClick={() => setEditingTypeId(null)} className="text-sm text-foreground/60">
-                        Huỷ
-                      </button>
-                    </div>
+                      Lưu
+                    </button>
+                    {savedTypeId === t.id && <span className="text-sm text-success">Đã lưu</span>}
+                    <button onClick={() => deleteType(t.id)} className="ml-auto text-sm text-red-600">
+                      Xoá
+                    </button>
                   </div>
-                ) : (
-                  <>
-                    <p className="mt-1 text-sm text-foreground/70">
-                      {t.pricingMode === "passengers"
-                        ? tiersSummary(t.priceOptions)
-                        : formatMoney(t.pricePerTrip)}{" "}
-                      · {durationModeLabel(t.durationMode)}
-                    </p>
-                    <div className="mt-2 flex gap-4">
-                      <button onClick={() => startEditType(t)} className="text-sm text-info">
-                        Sửa
-                      </button>
-                      <button onClick={() => deleteType(t.id)} className="text-sm text-red-600">
-                        Xoá
-                      </button>
-                    </div>
-                  </>
-                )}
+                </div>
               </div>
             );
           })}
         </div>
 
-        {/* Desktop: table */}
-        <div className="mb-4 hidden overflow-x-auto md:block">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-foreground/60">
-                <th className="pb-2">Tên</th>
-                <th className="pb-2">Giá</th>
-                <th className="pb-2">Chế độ thời gian</th>
-                <th className="pb-2">Chế độ giá</th>
-                <th className="pb-2">Số xe</th>
-                <th className="pb-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {types.map((t) => {
-                const isEditing = editingTypeId === t.id;
+        {/* Desktop: mỗi loại xe là 1 khối luôn sửa được trực tiếp */}
+        <div className="mb-4 hidden flex-col gap-3 md:flex">
+          {types.map((t) => {
+            const draft = drafts[t.id] ?? {
+              price: String(t.pricePerTrip),
+              durationMode: t.durationMode,
+              pricingMode: t.pricingMode,
+            };
+            return (
+              <div key={t.id} className="rounded-md border border-border p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="font-medium">
+                    {t.name} <span className="text-xs text-foreground/60">· {t._count.vehicles} xe</span>
+                  </p>
+                  <button onClick={() => deleteType(t.id)} className="text-sm text-red-600 hover:underline">
+                    Xoá loại xe
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-xs text-foreground/60">
+                    Giá cơ bản/dự phòng
+                    <input
+                      value={draft.price}
+                      onChange={(e) => updateDraft(t.id, { price: e.target.value })}
+                      type="number"
+                      className="rounded-md border border-border px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-foreground/60">
+                    Chế độ thời gian
+                    <select
+                      value={draft.durationMode}
+                      onChange={(e) => updateDraft(t.id, { durationMode: e.target.value })}
+                      className="rounded-md border border-border px-2 py-1.5 text-sm"
+                    >
+                      <option value="timed">Tính giờ (tự chốt lượt)</option>
+                      <option value="manual">Thoải mái (quét lại để trả xe)</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-foreground/60">
+                    Chế độ giá
+                    <select
+                      value={draft.pricingMode}
+                      onChange={(e) => updateDraft(t.id, { pricingMode: e.target.value })}
+                      className="rounded-md border border-border px-2 py-1.5 text-sm"
+                    >
+                      <option value="flat">Giá cố định</option>
+                      <option value="passengers">Giá theo số người</option>
+                    </select>
+                  </label>
+                </div>
 
-                if (isEditing) {
-                  return (
-                    <tr key={t.id} className="border-t border-border">
-                      <td colSpan={6} className="py-3">
-                        <div className="rounded-md border border-info/40 bg-hover p-3">
-                          <p className="mb-2 font-medium">{t.name}</p>
-                          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-                            <label className="flex flex-col gap-1 text-xs text-foreground/60">
-                              Giá cơ bản/dự phòng
-                              <input
-                                value={editTypePrice}
-                                onChange={(e) => setEditTypePrice(e.target.value)}
-                                type="number"
-                                className="rounded-md border border-border px-2 py-1.5 text-sm"
-                              />
-                            </label>
-                            <label className="flex flex-col gap-1 text-xs text-foreground/60">
-                              Chế độ thời gian
-                              <select
-                                value={editTypeDurationMode}
-                                onChange={(e) => setEditTypeDurationMode(e.target.value)}
-                                className="rounded-md border border-border px-2 py-1.5 text-sm"
-                              >
-                                <option value="timed">Tính giờ (tự chốt lượt)</option>
-                                <option value="manual">Thoải mái (quét lại để trả xe)</option>
-                              </select>
-                            </label>
-                            <label className="flex flex-col gap-1 text-xs text-foreground/60">
-                              Chế độ giá
-                              <select
-                                value={editTypePricingMode}
-                                onChange={(e) => setEditTypePricingMode(e.target.value)}
-                                className="rounded-md border border-border px-2 py-1.5 text-sm"
-                              >
-                                <option value="flat">Giá cố định</option>
-                                <option value="passengers">Giá theo số người</option>
-                              </select>
-                            </label>
-                          </div>
+                {draft.pricingMode === "passengers" && (
+                  <div className="mt-3">
+                    <TierEditor type={t} />
+                  </div>
+                )}
 
-                          {editTypePricingMode === "passengers" && (
-                            <div className="mt-3">
-                              <TierEditor type={t} />
-                            </div>
-                          )}
-
-                          <div className="mt-3 flex gap-3">
-                            <button
-                              onClick={() => saveEditType(t.id)}
-                              className="rounded-md bg-success px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-                            >
-                              Lưu
-                            </button>
-                            <button
-                              onClick={() => setEditingTypeId(null)}
-                              className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-white"
-                            >
-                              Huỷ
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                return (
-                  <tr key={t.id} className="border-t border-border align-top">
-                    <td className="py-2">{t.name}</td>
-                    <td className="py-2">
-                      {t.pricingMode === "passengers"
-                        ? tiersSummary(t.priceOptions)
-                        : formatMoney(t.pricePerTrip)}
-                    </td>
-                    <td className="py-2">{durationModeLabel(t.durationMode)}</td>
-                    <td className="py-2">
-                      {t.pricingMode === "passengers" ? "Theo số người" : "Cố định"}
-                    </td>
-                    <td className="py-2">{t._count.vehicles}</td>
-                    <td className="py-2 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button
-                          onClick={() => startEditType(t)}
-                          className="text-sm text-info hover:underline"
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          onClick={() => deleteType(t.id)}
-                          className="text-sm text-red-600 hover:underline"
-                        >
-                          Xoá
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    onClick={() => saveEditType(t.id)}
+                    className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                  >
+                    Lưu
+                  </button>
+                  {savedTypeId === t.id && <span className="text-sm text-success">Đã lưu</span>}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <form onSubmit={addType} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">

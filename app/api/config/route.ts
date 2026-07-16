@@ -15,5 +15,8 @@ export async function GET() {
     tripDurationMinutes: config.tripDurationMinutes,
     extendMinutes: config.extendMinutes,
     allowEarlyRescan: config.allowEarlyRescan,
+    bankId: config.bankId,
+    bankAccountNumber: config.bankAccountNumber,
+    bankAccountName: config.bankAccountName,
   });
 }

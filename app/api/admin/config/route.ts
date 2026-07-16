@@ -27,6 +27,9 @@ export async function PATCH(req: NextRequest) {
     }
     data.extendMinutes = extendMinutes;
   }
+  if (body?.bankId !== undefined) data.bankId = body.bankId || null;
+  if (body?.bankAccountNumber !== undefined) data.bankAccountNumber = body.bankAccountNumber || null;
+  if (body?.bankAccountName !== undefined) data.bankAccountName = body.bankAccountName || null;
 
   await getSystemConfig();
   const config = await prisma.systemConfig.update({ where: { id: "singleton" }, data });

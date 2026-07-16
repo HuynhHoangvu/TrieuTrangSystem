@@ -33,6 +33,23 @@ interface PassengerPrompt {
   tiers: PassengerTier[];
 }
 
+interface BankConfig {
+  bankId: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
+}
+
+interface VietQrInfo {
+  amount: number;
+  note: string;
+}
+
+function vietQrImageUrl(bank: BankConfig, amount: number, note: string) {
+  return `https://img.vietqr.io/image/${bank.bankId}-${bank.bankAccountNumber}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
+    note
+  )}&accountName=${encodeURIComponent(bank.bankAccountName ?? "")}`;
+}
+
 function paymentLabel(method: string | null) {
   return method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "-";
 }
@@ -61,6 +78,8 @@ export default function DriverPage() {
   const [extendLoading, setExtendLoading] = useState(false);
   const [passengerPrompt, setPassengerPrompt] = useState<PassengerPrompt | null>(null);
   const [extendMinutes, setExtendMinutes] = useState(10);
+  const [bankConfig, setBankConfig] = useState<BankConfig | null>(null);
+  const [vietQrInfo, setVietQrInfo] = useState<VietQrInfo | null>(null);
 
   const loadData = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -79,7 +98,15 @@ export default function DriverPage() {
       .then((data) => data && setDriverName(data.name));
     fetch("/api/config")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data && setExtendMinutes(data.extendMinutes ?? 10));
+      .then((data) => {
+        if (!data) return;
+        setExtendMinutes(data.extendMinutes ?? 10);
+        setBankConfig({
+          bankId: data.bankId ?? null,
+          bankAccountNumber: data.bankAccountNumber ?? null,
+          bankAccountName: data.bankAccountName ?? null,
+        });
+      });
     loadData();
     const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
@@ -112,6 +139,14 @@ export default function DriverPage() {
               text: `Đã nhận xe ${data.vehicle.code} - ${formatMoney(data.amount)} (${paymentLabel(method)})`,
             }
       );
+      if (
+        data.action !== "checkout" &&
+        method === "transfer" &&
+        bankConfig?.bankId &&
+        bankConfig.bankAccountNumber
+      ) {
+        setVietQrInfo({ amount: data.amount, note: `XE ${data.vehicle.code}` });
+      }
       setScanning(false);
       setManualToken("");
       setPassengerPrompt(null);
@@ -154,11 +189,22 @@ export default function DriverPage() {
     if (!extendingTrip) return;
     setExtendLoading(true);
     try {
-      await fetch(`/api/trips/${extendingTrip.id}/extend`, {
+      const res = await fetch(`/api/trips/${extendingTrip.id}/extend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ minutes: extendMinutes, ...(method ? { paymentMethod: method } : {}) }),
       });
+      const data = await res.json().catch(() => null);
+      const usedMethod = method ?? extendingTrip.paymentMethod;
+      if (
+        res.ok &&
+        usedMethod === "transfer" &&
+        bankConfig?.bankId &&
+        bankConfig.bankAccountNumber &&
+        data?.extraAmount
+      ) {
+        setVietQrInfo({ amount: data.extraAmount, note: `XE ${extendingTrip.vehicle.code} +${extendMinutes}P` });
+      }
       setExtendingTrip(null);
       await loadData();
     } finally {
@@ -466,6 +512,36 @@ export default function DriverPage() {
                 Huỷ
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {vietQrInfo && bankConfig?.bankId && bankConfig.bankAccountNumber && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setVietQrInfo(null)}
+        >
+          <div
+            className="flex w-full max-w-xs flex-col items-center gap-3 rounded-lg bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold">Đưa mã cho khách quét</h3>
+            <p className="text-2xl font-semibold text-info">{formatMoney(vietQrInfo.amount)}</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={vietQrImageUrl(bankConfig, vietQrInfo.amount, vietQrInfo.note)}
+              alt="Mã QR chuyển khoản"
+              className="h-72 w-72 rounded-md border border-border object-contain"
+            />
+            <p className="text-center text-sm text-foreground/60">
+              {bankConfig.bankAccountName} · {bankConfig.bankAccountNumber}
+            </p>
+            <button
+              onClick={() => setVietQrInfo(null)}
+              className="w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              Đã chuyển xong
+            </button>
           </div>
         </div>
       )}
