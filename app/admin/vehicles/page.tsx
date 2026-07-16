@@ -483,89 +483,101 @@ export default function AdminVehiclesPage() {
             <tbody>
               {types.map((t) => {
                 const isEditing = editingTypeId === t.id;
+
+                if (isEditing) {
+                  return (
+                    <tr key={t.id} className="border-t border-border">
+                      <td colSpan={6} className="py-3">
+                        <div className="rounded-md border border-info/40 bg-hover p-3">
+                          <p className="mb-2 font-medium">{t.name}</p>
+                          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                            <label className="flex flex-col gap-1 text-xs text-foreground/60">
+                              Giá cơ bản/dự phòng
+                              <input
+                                value={editTypePrice}
+                                onChange={(e) => setEditTypePrice(e.target.value)}
+                                type="number"
+                                className="rounded-md border border-border px-2 py-1.5 text-sm"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-foreground/60">
+                              Chế độ thời gian
+                              <select
+                                value={editTypeDurationMode}
+                                onChange={(e) => setEditTypeDurationMode(e.target.value)}
+                                className="rounded-md border border-border px-2 py-1.5 text-sm"
+                              >
+                                <option value="timed">Tính giờ (tự chốt lượt)</option>
+                                <option value="manual">Thoải mái (quét lại để trả xe)</option>
+                              </select>
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-foreground/60">
+                              Chế độ giá
+                              <select
+                                value={editTypePricingMode}
+                                onChange={(e) => setEditTypePricingMode(e.target.value)}
+                                className="rounded-md border border-border px-2 py-1.5 text-sm"
+                              >
+                                <option value="flat">Giá cố định</option>
+                                <option value="passengers">Giá theo số người</option>
+                              </select>
+                            </label>
+                          </div>
+
+                          {editTypePricingMode === "passengers" && (
+                            <div className="mt-3">
+                              <TierEditor type={t} />
+                            </div>
+                          )}
+
+                          <div className="mt-3 flex gap-3">
+                            <button
+                              onClick={() => saveEditType(t.id)}
+                              className="rounded-md bg-success px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                            >
+                              Lưu
+                            </button>
+                            <button
+                              onClick={() => setEditingTypeId(null)}
+                              className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-white"
+                            >
+                              Huỷ
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <tr key={t.id} className="border-t border-border align-top">
                     <td className="py-2">{t.name}</td>
                     <td className="py-2">
-                      {isEditing ? (
-                        <input
-                          value={editTypePrice}
-                          onChange={(e) => setEditTypePrice(e.target.value)}
-                          type="number"
-                          className="w-28 rounded-md border border-border px-2 py-1 text-sm"
-                        />
-                      ) : t.pricingMode === "passengers" ? (
-                        tiersSummary(t.priceOptions)
-                      ) : (
-                        formatMoney(t.pricePerTrip)
-                      )}
+                      {t.pricingMode === "passengers"
+                        ? tiersSummary(t.priceOptions)
+                        : formatMoney(t.pricePerTrip)}
                     </td>
+                    <td className="py-2">{durationModeLabel(t.durationMode)}</td>
                     <td className="py-2">
-                      {isEditing ? (
-                        <select
-                          value={editTypeDurationMode}
-                          onChange={(e) => setEditTypeDurationMode(e.target.value)}
-                          className="rounded-md border border-border px-2 py-1 text-sm"
-                        >
-                          <option value="timed">Tính giờ (tự chốt lượt)</option>
-                          <option value="manual">Thoải mái (quét lại để trả xe)</option>
-                        </select>
-                      ) : (
-                        durationModeLabel(t.durationMode)
-                      )}
-                    </td>
-                    <td className="py-2">
-                      {isEditing ? (
-                        <div className="flex flex-col gap-2">
-                          <select
-                            value={editTypePricingMode}
-                            onChange={(e) => setEditTypePricingMode(e.target.value)}
-                            className="rounded-md border border-border px-2 py-1 text-sm"
-                          >
-                            <option value="flat">Giá cố định</option>
-                            <option value="passengers">Giá theo số người</option>
-                          </select>
-                          {editTypePricingMode === "passengers" && <TierEditor type={t} />}
-                        </div>
-                      ) : t.pricingMode === "passengers" ? (
-                        "Theo số người"
-                      ) : (
-                        "Cố định"
-                      )}
+                      {t.pricingMode === "passengers" ? "Theo số người" : "Cố định"}
                     </td>
                     <td className="py-2">{t._count.vehicles}</td>
                     <td className="py-2 text-right">
-                      {isEditing ? (
-                        <div className="flex justify-end gap-3">
-                          <button
-                            onClick={() => saveEditType(t.id)}
-                            className="text-sm text-success hover:underline"
-                          >
-                            Lưu
-                          </button>
-                          <button
-                            onClick={() => setEditingTypeId(null)}
-                            className="text-sm text-foreground/60 hover:underline"
-                          >
-                            Huỷ
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex justify-end gap-3">
-                          <button
-                            onClick={() => startEditType(t)}
-                            className="text-sm text-info hover:underline"
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            onClick={() => deleteType(t.id)}
-                            className="text-sm text-red-600 hover:underline"
-                          >
-                            Xoá
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex justify-end gap-3">
+                        <button
+                          onClick={() => startEditType(t)}
+                          className="text-sm text-info hover:underline"
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          onClick={() => deleteType(t.id)}
+                          className="text-sm text-red-600 hover:underline"
+                        >
+                          Xoá
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
