@@ -180,24 +180,37 @@ export default function AdminTripsPage() {
     );
   }
 
-  function EndTimeCell({ trip }: { trip: Trip }) {
+  function EndTimeCell({ trip, showLabel = true }: { trip: Trip; showLabel?: boolean }) {
     if (trip.status === "active") {
       if (!trip.autoCheckoutAt) {
         return <span className="text-sm text-active">Thoải mái</span>;
       }
       return (
-        <div className="flex items-center gap-2">
-          <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadTrips} />
-          <button
-            onClick={() => setExtendingTrip(trip)}
-            className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
-          >
-            +10 phút
-          </button>
+        <div className="flex flex-col gap-1">
+          <span className="text-foreground/60">
+            Dự kiến <span className="text-foreground">{formatTimeOnly(trip.autoCheckoutAt)}</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-foreground/60">Còn lại</span>
+            <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadTrips} />
+            <button
+              onClick={() => setExtendingTrip(trip)}
+              className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
+            >
+              +10 phút
+            </button>
+          </div>
         </div>
       );
     }
-    return <span>{trip.checkOutTime ? formatTimeOnly(trip.checkOutTime) : "-"}</span>;
+    return (
+      <span className="text-foreground/60">
+        {showLabel && "Kết thúc "}
+        <span className="text-foreground">
+          {trip.checkOutTime ? formatTimeOnly(trip.checkOutTime) : "-"}
+        </span>
+      </span>
+    );
   }
 
   return (
@@ -271,13 +284,11 @@ export default function AdminTripsPage() {
                   <span className={`text-sm ${status.className}`}>{status.text}</span>
                 </div>
                 <p className="mt-1 text-sm text-foreground/60">{formatDate(t.checkInTime)}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <div className="mt-1 flex flex-col gap-1 text-sm">
                   <span className="text-foreground/60">
                     Bắt đầu <span className="text-foreground">{formatTimeOnly(t.checkInTime)}</span>
                   </span>
-                  <span className="flex items-center gap-1 text-foreground/60">
-                    Kết thúc <EndTimeCell trip={t} />
-                  </span>
+                  <EndTimeCell trip={t} />
                 </div>
 
                 {isEditing ? (
@@ -341,7 +352,7 @@ export default function AdminTripsPage() {
                   <td className="py-2">{formatDate(t.checkInTime)}</td>
                   <td className="py-2">{formatTimeOnly(t.checkInTime)}</td>
                   <td className="py-2">
-                    <EndTimeCell trip={t} />
+                    <EndTimeCell trip={t} showLabel={false} />
                   </td>
                   <td className="py-2">
                     {isEditing ? (
