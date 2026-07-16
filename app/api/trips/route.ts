@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     include: {
       vehicle: { include: { type: true } },
       driver: { select: { id: true, name: true } },
+      priceOption: { select: { id: true, label: true, allowExtend: true } },
     },
     orderBy: { checkInTime: "desc" },
   });

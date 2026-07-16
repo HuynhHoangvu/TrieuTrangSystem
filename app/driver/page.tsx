@@ -14,13 +14,16 @@ interface Trip {
   checkInTime: string;
   autoCheckoutAt: string | null;
   passengers: number | null;
+  priceOption: { id: string; label: string; allowExtend: boolean } | null;
   vehicle: { code: string; type: { name: string } };
 }
 
 type PaymentMethod = "cash" | "transfer";
 
 interface PassengerTier {
-  passengers: number;
+  id: string;
+  label: string;
+  passengers: number | null;
   price: number;
 }
 
@@ -52,7 +55,7 @@ export default function DriverPage() {
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [passengerCount, setPassengerCount] = useState<number>(2);
+  const [passengerCount, setPassengerCount] = useState<number | null>(null);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [extendingTrip, setExtendingTrip] = useState<Trip | null>(null);
   const [extendLoading, setExtendLoading] = useState(false);
@@ -82,7 +85,7 @@ export default function DriverPage() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  async function checkin(qrToken: string, method: PaymentMethod, passengers?: number) {
+  async function checkin(qrToken: string, method: PaymentMethod, passengers?: number | null) {
     if (!qrToken) return;
     setLoading(true);
     setMessage(null);
@@ -120,15 +123,16 @@ export default function DriverPage() {
     }
   }
 
-  function selectPassengers(passengers: number) {
+  function selectPassengers(tier: PassengerTier) {
     if (!passengerPrompt) return;
-    checkin(passengerPrompt.qrToken, passengerPrompt.method, passengers);
+    checkin(passengerPrompt.qrToken, passengerPrompt.method, tier.passengers);
   }
 
   // Nếu tài xế đã chọn sẵn hình thức thanh toán (chọn nhanh) thì check-in ngay
-  // (kèm số người đã chọn sẵn, mặc định 2). Nếu chưa chọn thanh toán, mở modal
-  // bắt buộc chọn trước khi hoàn tất. Nếu xe cần số người khác với đã chọn sẵn,
-  // server sẽ báo lại và modal chọn số người sẽ tự hiện ra.
+  // kèm số người đã chọn (nếu có). Không chọn số người = mặc định khách vãng
+  // lai (giá cố định). Nếu chưa chọn thanh toán, mở modal bắt buộc chọn trước
+  // khi hoàn tất. Nếu xe cần chọn rõ mức giá, server sẽ báo lại và modal chọn
+  // giá sẽ tự hiện ra.
   function handleToken(qrToken: string) {
     if (!qrToken) return;
     if (paymentMethod) {
@@ -218,11 +222,11 @@ export default function DriverPage() {
 
         <div className="mb-3">
           <p className="mb-1.5 text-sm text-foreground/60">
-            Số người (áp dụng cho xe tính theo số người, VD ATV):
+            Số người (chỉ áp dụng cho xe tính theo số người, VD ATV) — để trống nếu là khách vãng lai:
           </p>
           <div className="flex gap-2">
             <button
-              onClick={() => setPassengerCount(1)}
+              onClick={() => setPassengerCount(passengerCount === 1 ? null : 1)}
               className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
                 passengerCount === 1
                   ? "border-foreground bg-foreground text-white"
@@ -232,7 +236,7 @@ export default function DriverPage() {
               1 người
             </button>
             <button
-              onClick={() => setPassengerCount(2)}
+              onClick={() => setPassengerCount(passengerCount === 2 ? null : 2)}
               className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
                 passengerCount === 2
                   ? "border-foreground bg-foreground text-white"
@@ -301,12 +305,14 @@ export default function DriverPage() {
                 {trip.autoCheckoutAt ? (
                   <div className="flex items-center gap-2">
                     <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadData} />
-                    <button
-                      onClick={() => setExtendingTrip(trip)}
-                      className="rounded-md border border-border bg-white px-2 py-1 text-xs font-medium hover:bg-hover"
-                    >
-                      +{extendMinutes} phút
-                    </button>
+                    {(!trip.priceOption || trip.priceOption.allowExtend) && (
+                      <button
+                        onClick={() => setExtendingTrip(trip)}
+                        className="rounded-md border border-border bg-white px-2 py-1 text-xs font-medium hover:bg-hover"
+                      >
+                        +{extendMinutes} phút
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <span className="text-sm text-active">Thoải mái · quét lại để trả xe</span>
@@ -331,7 +337,7 @@ export default function DriverPage() {
                   </p>
                   <p className="text-sm text-foreground/60">
                     {formatMoney(trip.amount)} · {paymentLabel(trip.paymentMethod)}
-                    {trip.passengers ? ` · ${trip.passengers} người` : ""}
+                    {trip.priceOption ? ` · ${trip.priceOption.label}` : ""}
                   </p>
                 </div>
                 <span
@@ -390,20 +396,20 @@ export default function DriverPage() {
       {passengerPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-xs rounded-lg bg-white p-6">
-            <h3 className="mb-1 text-lg font-semibold">Mấy người đi xe?</h3>
-            <p className="mb-4 text-sm text-foreground/60">Chọn số người để tính đúng giá.</p>
+            <h3 className="mb-1 text-lg font-semibold">Chọn mức giá</h3>
+            <p className="mb-4 text-sm text-foreground/60">Chọn đúng mức giá áp dụng cho khách này.</p>
             <div className="flex flex-col gap-2">
               {passengerPrompt.tiers.length === 0 ? (
-                <p className="text-sm text-red-600">Loại xe này chưa được thiết lập bậc giá.</p>
+                <p className="text-sm text-red-600">Loại xe này chưa được thiết lập mức giá.</p>
               ) : (
                 passengerPrompt.tiers.map((tier) => (
                   <button
-                    key={tier.passengers}
-                    onClick={() => selectPassengers(tier.passengers)}
+                    key={tier.id}
+                    onClick={() => selectPassengers(tier)}
                     disabled={loading}
                     className="flex items-center justify-between rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                   >
-                    <span>{tier.passengers} người</span>
+                    <span>{tier.label}</span>
                     <span>{formatMoney(tier.price)}</span>
                   </button>
                 ))

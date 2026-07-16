@@ -5,7 +5,7 @@ export async function GET() {
   const types = await prisma.vehicleType.findMany({
     include: {
       _count: { select: { vehicles: true } },
-      passengerPrices: { orderBy: { passengers: "asc" } },
+      priceOptions: { orderBy: { createdAt: "asc" } },
     },
     orderBy: { name: "asc" },
   });

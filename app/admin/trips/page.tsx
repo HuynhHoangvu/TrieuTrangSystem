@@ -13,6 +13,7 @@ interface Trip {
   checkOutTime: string | null;
   autoCheckoutAt: string | null;
   passengers: number | null;
+  priceOption: { id: string; label: string; allowExtend: boolean } | null;
   driver: { id: string; name: string };
   vehicle: { code: string; type: { name: string } };
 }
@@ -198,12 +199,14 @@ export default function AdminTripsPage() {
           <div className="flex items-center gap-2">
             <span className="text-foreground/60">Còn lại</span>
             <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadTrips} />
-            <button
-              onClick={() => setExtendingTrip(trip)}
-              className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
-            >
-              +{extendMinutes} phút
-            </button>
+            {(!trip.priceOption || trip.priceOption.allowExtend) && (
+              <button
+                onClick={() => setExtendingTrip(trip)}
+                className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
+              >
+                +{extendMinutes} phút
+              </button>
+            )}
           </div>
         </div>
       );
@@ -304,7 +307,7 @@ export default function AdminTripsPage() {
                   <>
                     <p className="mt-1 text-sm">
                       {formatMoney(t.amount)} · {paymentLabel(t.paymentMethod)}
-                      {t.passengers ? ` · ${t.passengers} người` : ""}
+                      {t.priceOption ? ` · ${t.priceOption.label}` : ""}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-4">
                       <button onClick={() => startEdit(t)} className="text-sm text-info">
@@ -340,7 +343,7 @@ export default function AdminTripsPage() {
               <th className="pb-2">Giờ bắt đầu</th>
               <th className="pb-2">Giờ kết thúc</th>
               <th className="pb-2">Giá</th>
-              <th className="pb-2">Số người</th>
+              <th className="pb-2">Mức giá</th>
               <th className="pb-2">Thanh toán</th>
               <th className="pb-2">Trạng thái</th>
               <th className="pb-2" />
@@ -373,7 +376,7 @@ export default function AdminTripsPage() {
                       formatMoney(t.amount)
                     )}
                   </td>
-                  <td className="py-2">{t.passengers ?? "-"}</td>
+                  <td className="py-2">{t.priceOption?.label ?? "-"}</td>
                   <td className="py-2">
                     {isEditing ? (
                       <select

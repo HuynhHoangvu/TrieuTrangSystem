@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 
-interface PassengerPrice {
+interface PriceOption {
   id: string;
-  passengers: number;
+  label: string;
+  passengers: number | null;
   price: number;
+  allowExtend: boolean;
 }
 
 interface VehicleType {
@@ -16,7 +18,7 @@ interface VehicleType {
   pricePerTrip: number;
   durationMode: string;
   pricingMode: string;
-  passengerPrices: PassengerPrice[];
+  priceOptions: PriceOption[];
   _count: { vehicles: number };
 }
 
@@ -38,12 +40,12 @@ function durationModeLabel(mode: string) {
   return mode === "manual" ? "Thoải mái (quét lại để trả xe)" : "Tính giờ (tự chốt lượt)";
 }
 
-function tiersSummary(tiers: PassengerPrice[]) {
-  if (tiers.length === 0) return "Chưa có bậc giá";
-  return tiers
+function tiersSummary(options: PriceOption[]) {
+  if (options.length === 0) return "Chưa có mức giá";
+  return options
     .slice()
-    .sort((a, b) => a.passengers - b.passengers)
-    .map((t) => `${t.passengers} người: ${formatMoney(t.price)}`)
+    .sort((a, b) => (a.passengers ?? -1) - (b.passengers ?? -1))
+    .map((o) => `${o.label}: ${formatMoney(o.price)}`)
     .join(" · ");
 }
 
@@ -58,8 +60,10 @@ export default function AdminVehiclesPage() {
   const [editTypePrice, setEditTypePrice] = useState("");
   const [editTypeDurationMode, setEditTypeDurationMode] = useState("timed");
   const [editTypePricingMode, setEditTypePricingMode] = useState("flat");
+  const [tierLabel, setTierLabel] = useState("");
   const [tierPassengers, setTierPassengers] = useState("");
   const [tierPrice, setTierPrice] = useState("");
+  const [tierAllowExtend, setTierAllowExtend] = useState(true);
   const [newVehicleCode, setNewVehicleCode] = useState("");
   const [newVehicleTypeId, setNewVehicleTypeId] = useState("");
   const [newVehiclePrice, setNewVehiclePrice] = useState("");
@@ -119,8 +123,10 @@ export default function AdminVehiclesPage() {
     setEditTypePrice(String(t.pricePerTrip));
     setEditTypeDurationMode(t.durationMode);
     setEditTypePricingMode(t.pricingMode);
+    setTierLabel("");
     setTierPassengers("");
     setTierPrice("");
+    setTierAllowExtend(true);
   }
 
   async function saveEditType(id: string) {
@@ -145,18 +151,25 @@ export default function AdminVehiclesPage() {
   async function addTier(e: React.FormEvent, typeId: string) {
     e.preventDefault();
     setError(null);
-    if (!tierPassengers || !tierPrice) return;
+    if (!tierLabel || !tierPrice) return;
     const res = await fetch(`/api/admin/vehicle-types/${typeId}/passenger-prices`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passengers: Number(tierPassengers), price: Number(tierPrice) }),
+      body: JSON.stringify({
+        label: tierLabel,
+        passengers: tierPassengers ? Number(tierPassengers) : null,
+        price: Number(tierPrice),
+        allowExtend: tierAllowExtend,
+      }),
     });
     if (!res.ok) {
       setError((await res.json()).error);
       return;
     }
+    setTierLabel("");
     setTierPassengers("");
     setTierPrice("");
+    setTierAllowExtend(true);
     loadAll();
   }
 
@@ -292,19 +305,22 @@ export default function AdminVehiclesPage() {
   function TierEditor({ type }: { type: VehicleType }) {
     return (
       <div className="rounded-md border border-dashed border-border p-2">
-        <p className="mb-1.5 text-xs font-medium text-foreground/60">Bậc giá theo số người</p>
-        {type.passengerPrices.length > 0 && (
+        <p className="mb-1.5 text-xs font-medium text-foreground/60">
+          Tuỳ chọn giá (tên tự đặt, VD &quot;Khách vãng lai&quot;, &quot;1 người&quot;...)
+        </p>
+        {type.priceOptions.length > 0 && (
           <ul className="mb-2 flex flex-col divide-y divide-border">
-            {type.passengerPrices
+            {type.priceOptions
               .slice()
-              .sort((a, b) => a.passengers - b.passengers)
-              .map((tier) => (
-                <li key={tier.id} className="flex items-center justify-between py-1 text-sm">
+              .sort((a, b) => (a.passengers ?? -1) - (b.passengers ?? -1))
+              .map((opt) => (
+                <li key={opt.id} className="flex items-center justify-between py-1 text-sm">
                   <span>
-                    {tier.passengers} người — {formatMoney(tier.price)}
+                    {opt.label} — {formatMoney(opt.price)}
+                    {!opt.allowExtend && <span className="text-foreground/50"> (không cộng giờ)</span>}
                   </span>
                   <button
-                    onClick={() => deleteTier(type.id, tier.id)}
+                    onClick={() => deleteTier(type.id, opt.id)}
                     className="text-red-600 hover:underline"
                   >
                     Xoá
@@ -313,27 +329,45 @@ export default function AdminVehiclesPage() {
               ))}
           </ul>
         )}
-        <form onSubmit={(e) => addTier(e, type.id)} className="flex gap-2">
-          <input
-            value={tierPassengers}
-            onChange={(e) => setTierPassengers(e.target.value)}
-            type="number"
-            min={1}
-            placeholder="Số người"
-            className="w-24 rounded-md border border-border px-2 py-1.5 text-sm"
-            required
-          />
-          <input
-            value={tierPrice}
-            onChange={(e) => setTierPrice(e.target.value)}
-            type="number"
-            placeholder="Giá"
-            className="w-28 rounded-md border border-border px-2 py-1.5 text-sm"
-            required
-          />
-          <button className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
-            Thêm
-          </button>
+        <form onSubmit={(e) => addTier(e, type.id)} className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <input
+              value={tierLabel}
+              onChange={(e) => setTierLabel(e.target.value)}
+              placeholder="Tên (VD: Khách vãng lai)"
+              className="flex-1 rounded-md border border-border px-2 py-1.5 text-sm"
+              required
+            />
+            <input
+              value={tierPassengers}
+              onChange={(e) => setTierPassengers(e.target.value)}
+              type="number"
+              min={1}
+              placeholder="Số người (tuỳ chọn)"
+              className="w-32 rounded-md border border-border px-2 py-1.5 text-sm"
+            />
+            <input
+              value={tierPrice}
+              onChange={(e) => setTierPrice(e.target.value)}
+              type="number"
+              placeholder="Giá"
+              className="w-28 rounded-md border border-border px-2 py-1.5 text-sm"
+              required
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-1.5 text-xs text-foreground/70">
+              <input
+                type="checkbox"
+                checked={tierAllowExtend}
+                onChange={(e) => setTierAllowExtend(e.target.checked)}
+              />
+              Cho phép cộng thêm giờ (+X phút) với mức giá này
+            </label>
+            <button className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+              Thêm
+            </button>
+          </div>
         </form>
       </div>
     );
@@ -414,7 +448,7 @@ export default function AdminVehiclesPage() {
                   <>
                     <p className="mt-1 text-sm text-foreground/70">
                       {t.pricingMode === "passengers"
-                        ? tiersSummary(t.passengerPrices)
+                        ? tiersSummary(t.priceOptions)
                         : formatMoney(t.pricePerTrip)}{" "}
                       · {durationModeLabel(t.durationMode)}
                     </p>
@@ -461,7 +495,7 @@ export default function AdminVehiclesPage() {
                           className="w-28 rounded-md border border-border px-2 py-1 text-sm"
                         />
                       ) : t.pricingMode === "passengers" ? (
-                        tiersSummary(t.passengerPrices)
+                        tiersSummary(t.priceOptions)
                       ) : (
                         formatMoney(t.pricePerTrip)
                       )}

@@ -17,13 +17,15 @@ export async function POST(req: NextRequest) {
   const paymentMethod =
     body?.paymentMethod === "cash" || body?.paymentMethod === "transfer" ? body.paymentMethod : null;
   const passengers =
-    body?.passengers !== undefined && body?.passengers !== null ? Number(body.passengers) : null;
+    body?.passengers !== undefined && body?.passengers !== null && body.passengers !== ""
+      ? Number(body.passengers)
+      : null;
 
   await closeExpiredTrips();
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { qrToken },
-    include: { type: { include: { passengerPrices: true } } },
+    include: { type: { include: { priceOptions: true } } },
   });
 
   if (!vehicle) {
@@ -33,29 +35,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Xe hiện đang bảo trì, không thể nhận lượt" }, { status: 409 });
   }
 
-  // Xe tính giá theo số người ngồi (VD ATV): cần biết số người trước khi
-  // tạo lượt để tính đúng tiền. Nếu chưa gửi passengers, trả về 422 kèm
-  // bảng giá để client hỏi lại tài xế.
+  // Xe nhiều mức giá tuỳ chọn (VD ATV): nếu tài xế không chọn số người thì
+  // mặc định dùng mức "khách vãng lai" (mức không gắn số người cụ thể).
+  // Nếu chọn 1/2 người thì dùng đúng mức giá khách quen tương ứng.
   let amount: number;
+  let priceOptionId: string | null = null;
   if (vehicle.type.pricingMode === "passengers" && vehicle.priceOverride === null) {
-    if (!passengers || !Number.isInteger(passengers) || passengers <= 0) {
+    const option =
+      passengers !== null
+        ? vehicle.type.priceOptions.find((o) => o.passengers === passengers)
+        : vehicle.type.priceOptions.find((o) => o.passengers === null);
+
+    if (!option) {
       return NextResponse.json(
         {
-          error: "Vui lòng chọn số người",
+          error:
+            passengers !== null
+              ? "Số người không hợp lệ cho loại xe này"
+              : "Chưa cấu hình mức giá khách vãng lai cho loại xe này",
           needPassengers: true,
-          tiers: vehicle.type.passengerPrices
+          tiers: vehicle.type.priceOptions
             .slice()
-            .sort((a, b) => a.passengers - b.passengers)
-            .map((t) => ({ passengers: t.passengers, price: t.price })),
+            .sort((a, b) => (a.passengers ?? -1) - (b.passengers ?? -1))
+            .map((t) => ({ id: t.id, label: t.label, passengers: t.passengers, price: t.price })),
         },
         { status: 422 }
       );
     }
-    const tier = vehicle.type.passengerPrices.find((t) => t.passengers === passengers);
-    if (!tier) {
-      return NextResponse.json({ error: "Số người không hợp lệ cho loại xe này" }, { status: 400 });
-    }
-    amount = tier.price;
+    amount = option.price;
+    priceOptionId = option.id;
   } else {
     amount = vehicle.priceOverride ?? vehicle.type.pricePerTrip;
   }
@@ -87,6 +95,7 @@ export async function POST(req: NextRequest) {
         status: "active",
         paymentMethod,
         passengers,
+        priceOptionId,
       },
       include: { vehicle: { include: { type: true } } },
     });
@@ -115,6 +124,7 @@ export async function POST(req: NextRequest) {
       status: "active",
       paymentMethod,
       passengers,
+      priceOptionId,
     },
     include: { vehicle: { include: { type: true } } },
   });

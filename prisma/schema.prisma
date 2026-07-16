@@ -18,24 +18,34 @@ model VehicleType {
   // "manual": không giới hạn thời gian, chốt lượt khi quét lại đúng xe đó (ô tô/Land Cruiser)
   durationMode String    @default("timed")
   // "flat": dùng pricePerTrip cố định
-  // "passengers": giá phụ thuộc số người ngồi, tra theo bảng passengerPrices
+  // "options": nhiều mức giá tuỳ chọn (khách vãng lai/khách quen/số người...),
+  // tài xế chọn đúng mức khi quét xe, tra theo bảng priceOptions
   pricingMode  String    @default("flat")
   vehicles     Vehicle[]
-  passengerPrices PassengerPrice[]
+  priceOptions PassengerPrice[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
 
+// Một mức giá tuỳ chọn cho loại xe có pricingMode = "options".
+// VD ATV: "Khách vãng lai" 800.000đ, "1 người (khách quen)" 400.000đ,
+// "2 người (khách quen)" 600.000đ — không nhất thiết phải là số người.
 model PassengerPrice {
   id         String      @id @default(cuid())
   typeId     String
   type       VehicleType @relation(fields: [typeId], references: [id], onDelete: Cascade)
-  passengers Int
+  // Tên hiển thị cho tài xế chọn, VD "Khách vãng lai", "1 người"
+  label      String
+  // Số người tương ứng (chỉ để ghi nhận/thống kê), để trống nếu không áp dụng
+  passengers Int?
   price      Int
+  // Có cho phép bấm "+X phút" cộng thêm giờ với mức giá này không
+  // (VD: khách vãng lai cho cộng giờ, khách quen theo số người thì không)
+  allowExtend Boolean    @default(true)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
-  @@unique([typeId, passengers])
+  trips Trip[]
 }
 
 model Vehicle {
@@ -84,6 +94,8 @@ model Trip {
   paymentMethod  String?
   amount         Int
   passengers     Int?
+  priceOptionId  String?
+  priceOption    PassengerPrice? @relation(fields: [priceOptionId], references: [id], onDelete: SetNull)
   note           String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

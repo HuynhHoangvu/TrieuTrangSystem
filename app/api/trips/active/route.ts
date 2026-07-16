@@ -13,7 +13,10 @@ export async function GET() {
 
   const trips = await prisma.trip.findMany({
     where: { driverId: session.userId, status: "active" },
-    include: { vehicle: { include: { type: true } } },
+    include: {
+      vehicle: { include: { type: true } },
+      priceOption: { select: { id: true, label: true, allowExtend: true } },
+    },
     orderBy: { checkInTime: "desc" },
   });
 

@@ -26,7 +26,7 @@ export async function PATCH(
   const type = await prisma.vehicleType.update({
     where: { id },
     data,
-    include: { passengerPrices: { orderBy: { passengers: "asc" } } },
+    include: { priceOptions: { orderBy: { createdAt: "asc" } } },
   });
   return NextResponse.json(type);
 }

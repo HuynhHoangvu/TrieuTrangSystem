@@ -7,11 +7,16 @@ export async function POST(
 ) {
   const { id } = await params;
   const body = await req.json().catch(() => null);
-  const passengers = Number(body?.passengers);
+  const label = typeof body?.label === "string" ? body.label.trim() : "";
   const price = Number(body?.price);
+  const passengers =
+    body?.passengers !== undefined && body?.passengers !== null && body.passengers !== ""
+      ? Number(body.passengers)
+      : null;
+  const allowExtend = body?.allowExtend !== false;
 
-  if (!Number.isInteger(passengers) || passengers <= 0 || !Number.isFinite(price) || price <= 0) {
-    return NextResponse.json({ error: "Số người hoặc giá không hợp lệ" }, { status: 400 });
+  if (!label || !Number.isFinite(price) || price <= 0) {
+    return NextResponse.json({ error: "Tên tuỳ chọn hoặc giá không hợp lệ" }, { status: 400 });
   }
 
   const type = await prisma.vehicleType.findUnique({ where: { id } });
@@ -19,13 +24,38 @@ export async function POST(
     return NextResponse.json({ error: "Không tìm thấy loại xe" }, { status: 404 });
   }
 
-  const tier = await prisma.passengerPrice.upsert({
-    where: { typeId_passengers: { typeId: id, passengers } },
-    update: { price },
-    create: { typeId: id, passengers, price },
+  const option = await prisma.passengerPrice.create({
+    data: { typeId: id, label, passengers, price, allowExtend },
   });
 
-  return NextResponse.json(tier);
+  return NextResponse.json(option);
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const tierId = typeof body?.tierId === "string" ? body.tierId : "";
+  if (!tierId) {
+    return NextResponse.json({ error: "Thiếu tierId" }, { status: 400 });
+  }
+  const data: Record<string, unknown> = {};
+  if (typeof body?.label === "string" && body.label.trim()) data.label = body.label.trim();
+  if (body?.price !== undefined) {
+    const price = Number(body.price);
+    if (!Number.isFinite(price) || price <= 0) {
+      return NextResponse.json({ error: "Giá không hợp lệ" }, { status: 400 });
+    }
+    data.price = price;
+  }
+  if (body?.passengers !== undefined) {
+    data.passengers =
+      body.passengers === null || body.passengers === "" ? null : Number(body.passengers);
+  }
+  if (typeof body?.allowExtend === "boolean") {
+    data.allowExtend = body.allowExtend;
+  }
+
+  const option = await prisma.passengerPrice.update({ where: { id: tierId }, data });
+  return NextResponse.json(option);
 }
 
 export async function DELETE(req: NextRequest) {
