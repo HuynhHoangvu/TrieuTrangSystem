@@ -10,6 +10,7 @@ export default function QrScanner({
   active: boolean;
 }) {
   const containerId = "qr-reader";
+  const fileContainerId = "qr-reader-file";
   const instanceRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
   const startedRef = useRef(false);
   const onScanRef = useRef(onScan);
@@ -17,6 +18,8 @@ export default function QrScanner({
 
   const [status, setStatus] = useState<"starting" | "running" | "error">("starting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!active) return;
@@ -92,6 +95,22 @@ export default function QrScanner({
     };
   }, [active]);
 
+  async function handleFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setFileError(null);
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const fileScanner = new Html5Qrcode(fileContainerId, { verbose: false });
+      const decodedText = await fileScanner.scanFile(file, false);
+      await fileScanner.clear();
+      onScanRef.current(decodedText);
+    } catch {
+      setFileError("Không đọc được mã QR trong ảnh này. Thử ảnh khác rõ hơn.");
+    }
+  }
+
   if (!active) return null;
 
   return (
@@ -110,6 +129,24 @@ export default function QrScanner({
       {status === "error" && errorMessage && (
         <p className="text-sm text-red-600">{errorMessage}</p>
       )}
+
+      {/* Dùng để test: chọn ảnh chứa mã QR thay vì quét bằng camera */}
+      <div id={fileContainerId} className="hidden" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFilePicked}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="rounded-md border border-border px-3 py-2 text-sm hover:bg-hover"
+      >
+        Chọn ảnh mã QR (để test)
+      </button>
+      {fileError && <p className="text-sm text-red-600">{fileError}</p>}
     </div>
   );
 }
