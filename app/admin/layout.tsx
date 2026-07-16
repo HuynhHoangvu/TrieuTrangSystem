@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import AdminTripNotifier from "@/components/AdminTripNotifier";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },
@@ -116,6 +117,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="min-w-0 flex-1 overflow-y-auto p-4 print:overflow-visible print:p-0 md:p-6">
         {children}
       </div>
+
+      <AdminTripNotifier />
     </div>
   );
 }

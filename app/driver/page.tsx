@@ -41,6 +41,8 @@ export default function DriverPage() {
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [extendingTrip, setExtendingTrip] = useState<Trip | null>(null);
+  const [extendLoading, setExtendLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -112,6 +114,22 @@ export default function DriverPage() {
       checkin(pendingToken, method);
     }
     setPendingToken(null);
+  }
+
+  async function confirmExtend(method?: PaymentMethod) {
+    if (!extendingTrip) return;
+    setExtendLoading(true);
+    try {
+      await fetch(`/api/trips/${extendingTrip.id}/extend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minutes: 10, ...(method ? { paymentMethod: method } : {}) }),
+      });
+      setExtendingTrip(null);
+      await loadData();
+    } finally {
+      setExtendLoading(false);
+    }
   }
 
   async function handleLogout() {
@@ -215,7 +233,7 @@ export default function DriverPage() {
           <h2 className="mb-3 font-medium">Đang chạy</h2>
           <ul className="flex flex-col gap-3">
             {activeTrips.map((trip) => (
-              <li key={trip.id} className="flex items-center justify-between rounded-md bg-hover px-3 py-2">
+              <li key={trip.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hover px-3 py-2">
                 <div>
                   <p className="font-medium">
                     Xe {trip.vehicle.code} · {trip.vehicle.type.name}
@@ -223,7 +241,15 @@ export default function DriverPage() {
                   <p className="text-sm text-foreground/60">{formatMoney(trip.amount)}</p>
                 </div>
                 {trip.autoCheckoutAt ? (
-                  <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadData} />
+                  <div className="flex items-center gap-2">
+                    <CountdownTimer autoCheckoutAt={trip.autoCheckoutAt} onExpire={loadData} />
+                    <button
+                      onClick={() => setExtendingTrip(trip)}
+                      className="rounded-md border border-border bg-white px-2 py-1 text-xs font-medium hover:bg-hover"
+                    >
+                      +10 phút
+                    </button>
+                  </div>
                 ) : (
                   <span className="text-sm text-active">Thoải mái · quét lại để trả xe</span>
                 )}

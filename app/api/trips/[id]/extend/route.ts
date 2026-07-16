@@ -8,8 +8,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (session.role !== "admin") {
-    return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
+  if (!session.userId) {
+    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   }
 
   const { id } = await params;
@@ -28,6 +28,9 @@ export async function POST(
   });
   if (!trip) {
     return NextResponse.json({ error: "Không tìm thấy lượt chạy" }, { status: 404 });
+  }
+  if (session.role !== "admin" && trip.driverId !== session.userId) {
+    return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
   }
   if (trip.status !== "active" || !trip.autoCheckoutAt) {
     return NextResponse.json(
