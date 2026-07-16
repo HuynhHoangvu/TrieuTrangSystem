@@ -17,9 +17,25 @@ model VehicleType {
   // "timed": lượt tự động chốt sau tripDurationMinutes (ATV/mô tô)
   // "manual": không giới hạn thời gian, chốt lượt khi quét lại đúng xe đó (ô tô/Land Cruiser)
   durationMode String    @default("timed")
+  // "flat": dùng pricePerTrip cố định
+  // "passengers": giá phụ thuộc số người ngồi, tra theo bảng passengerPrices
+  pricingMode  String    @default("flat")
   vehicles     Vehicle[]
+  passengerPrices PassengerPrice[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+model PassengerPrice {
+  id         String      @id @default(cuid())
+  typeId     String
+  type       VehicleType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  passengers Int
+  price      Int
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([typeId, passengers])
 }
 
 model Vehicle {
@@ -65,6 +81,7 @@ model Trip {
   status         String    @default("active")
   paymentMethod  String?
   amount         Int
+  passengers     Int?
   note           String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

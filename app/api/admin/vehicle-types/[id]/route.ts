@@ -19,8 +19,15 @@ export async function PATCH(
   if (body?.durationMode === "manual" || body?.durationMode === "timed") {
     data.durationMode = body.durationMode;
   }
+  if (body?.pricingMode === "passengers" || body?.pricingMode === "flat") {
+    data.pricingMode = body.pricingMode;
+  }
 
-  const type = await prisma.vehicleType.update({ where: { id }, data });
+  const type = await prisma.vehicleType.update({
+    where: { id },
+    data,
+    include: { passengerPrices: { orderBy: { passengers: "asc" } } },
+  });
   return NextResponse.json(type);
 }
 

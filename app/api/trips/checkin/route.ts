@@ -16,12 +16,14 @@ export async function POST(req: NextRequest) {
   }
   const paymentMethod =
     body?.paymentMethod === "cash" || body?.paymentMethod === "transfer" ? body.paymentMethod : null;
+  const passengers =
+    body?.passengers !== undefined && body?.passengers !== null ? Number(body.passengers) : null;
 
   await closeExpiredTrips();
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { qrToken },
-    include: { type: true },
+    include: { type: { include: { passengerPrices: true } } },
   });
 
   if (!vehicle) {
@@ -29,6 +31,33 @@ export async function POST(req: NextRequest) {
   }
   if (vehicle.status !== "available") {
     return NextResponse.json({ error: "Xe hiện đang bảo trì, không thể nhận lượt" }, { status: 409 });
+  }
+
+  // Xe tính giá theo số người ngồi (VD ATV): cần biết số người trước khi
+  // tạo lượt để tính đúng tiền. Nếu chưa gửi passengers, trả về 422 kèm
+  // bảng giá để client hỏi lại tài xế.
+  let amount: number;
+  if (vehicle.type.pricingMode === "passengers" && vehicle.priceOverride === null) {
+    if (!passengers || !Number.isInteger(passengers) || passengers <= 0) {
+      return NextResponse.json(
+        {
+          error: "Vui lòng chọn số người",
+          needPassengers: true,
+          tiers: vehicle.type.passengerPrices
+            .slice()
+            .sort((a, b) => a.passengers - b.passengers)
+            .map((t) => ({ passengers: t.passengers, price: t.price })),
+        },
+        { status: 422 }
+      );
+    }
+    const tier = vehicle.type.passengerPrices.find((t) => t.passengers === passengers);
+    if (!tier) {
+      return NextResponse.json({ error: "Số người không hợp lệ cho loại xe này" }, { status: 400 });
+    }
+    amount = tier.price;
+  } else {
+    amount = vehicle.priceOverride ?? vehicle.type.pricePerTrip;
   }
 
   const activeTripOnVehicle = await prisma.trip.findFirst({
@@ -48,7 +77,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...returned, action: "checkout" });
     }
 
-    const amount = vehicle.priceOverride ?? vehicle.type.pricePerTrip;
     const trip = await prisma.trip.create({
       data: {
         vehicleId: vehicle.id,
@@ -58,6 +86,7 @@ export async function POST(req: NextRequest) {
         amount,
         status: "active",
         paymentMethod,
+        passengers,
       },
       include: { vehicle: { include: { type: true } } },
     });
@@ -73,7 +102,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const amount = vehicle.priceOverride ?? vehicle.type.pricePerTrip;
   const checkInTime = new Date();
   const autoCheckoutAt = new Date(checkInTime.getTime() + config.tripDurationMinutes * 60_000);
 
@@ -86,6 +114,7 @@ export async function POST(req: NextRequest) {
       amount,
       status: "active",
       paymentMethod,
+      passengers,
     },
     include: { vehicle: { include: { type: true } } },
   });

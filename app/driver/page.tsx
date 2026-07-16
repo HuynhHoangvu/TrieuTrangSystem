@@ -13,10 +13,22 @@ interface Trip {
   paymentMethod: string | null;
   checkInTime: string;
   autoCheckoutAt: string | null;
+  passengers: number | null;
   vehicle: { code: string; type: { name: string } };
 }
 
 type PaymentMethod = "cash" | "transfer";
+
+interface PassengerTier {
+  passengers: number;
+  price: number;
+}
+
+interface PassengerPrompt {
+  qrToken: string;
+  method: PaymentMethod;
+  tiers: PassengerTier[];
+}
 
 function paymentLabel(method: string | null) {
   return method === "cash" ? "Tiền mặt" : method === "transfer" ? "Chuyển khoản" : "-";
@@ -43,6 +55,7 @@ export default function DriverPage() {
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [extendingTrip, setExtendingTrip] = useState<Trip | null>(null);
   const [extendLoading, setExtendLoading] = useState(false);
+  const [passengerPrompt, setPassengerPrompt] = useState<PassengerPrompt | null>(null);
 
   const loadData = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -64,7 +77,7 @@ export default function DriverPage() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  async function checkin(qrToken: string, method: PaymentMethod) {
+  async function checkin(qrToken: string, method: PaymentMethod, passengers?: number) {
     if (!qrToken) return;
     setLoading(true);
     setMessage(null);
@@ -72,10 +85,14 @@ export default function DriverPage() {
       const res = await fetch("/api/trips/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qrToken, paymentMethod: method }),
+        body: JSON.stringify({ qrToken, paymentMethod: method, passengers }),
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.needPassengers) {
+          setPassengerPrompt({ qrToken, method, tiers: data.tiers ?? [] });
+          return;
+        }
         setMessage({ type: "error", text: data.error ?? "Quét thất bại" });
         return;
       }
@@ -89,12 +106,18 @@ export default function DriverPage() {
       );
       setScanning(false);
       setManualToken("");
+      setPassengerPrompt(null);
       await loadData();
     } catch {
       setMessage({ type: "error", text: "Có lỗi xảy ra, vui lòng thử lại" });
     } finally {
       setLoading(false);
     }
+  }
+
+  function selectPassengers(passengers: number) {
+    if (!passengerPrompt) return;
+    checkin(passengerPrompt.qrToken, passengerPrompt.method, passengers);
   }
 
   // Nếu tài xế đã chọn sẵn hình thức thanh toán (chọn nhanh) thì check-in ngay.
@@ -273,6 +296,7 @@ export default function DriverPage() {
                   </p>
                   <p className="text-sm text-foreground/60">
                     {formatMoney(trip.amount)} · {paymentLabel(trip.paymentMethod)}
+                    {trip.passengers ? ` · ${trip.passengers} người` : ""}
                   </p>
                 </div>
                 <span
@@ -320,6 +344,39 @@ export default function DriverPage() {
               <button
                 onClick={() => setPendingToken(null)}
                 className="mt-1 rounded-md border border-border px-4 py-2 text-sm hover:bg-hover"
+              >
+                Huỷ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {passengerPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xs rounded-lg bg-white p-6">
+            <h3 className="mb-1 text-lg font-semibold">Mấy người đi xe?</h3>
+            <p className="mb-4 text-sm text-foreground/60">Chọn số người để tính đúng giá.</p>
+            <div className="flex flex-col gap-2">
+              {passengerPrompt.tiers.length === 0 ? (
+                <p className="text-sm text-red-600">Loại xe này chưa được thiết lập bậc giá.</p>
+              ) : (
+                passengerPrompt.tiers.map((tier) => (
+                  <button
+                    key={tier.passengers}
+                    onClick={() => selectPassengers(tier.passengers)}
+                    disabled={loading}
+                    className="flex items-center justify-between rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    <span>{tier.passengers} người</span>
+                    <span>{formatMoney(tier.price)}</span>
+                  </button>
+                ))
+              )}
+              <button
+                onClick={() => setPassengerPrompt(null)}
+                disabled={loading}
+                className="mt-1 rounded-md border border-border px-4 py-2 text-sm hover:bg-hover disabled:opacity-50"
               >
                 Huỷ
               </button>
