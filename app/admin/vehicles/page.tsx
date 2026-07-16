@@ -58,7 +58,6 @@ export default function AdminVehiclesPage() {
   const [editTypePrice, setEditTypePrice] = useState("");
   const [editTypeDurationMode, setEditTypeDurationMode] = useState("timed");
   const [editTypePricingMode, setEditTypePricingMode] = useState("flat");
-  const [tierTypeId, setTierTypeId] = useState("");
   const [tierPassengers, setTierPassengers] = useState("");
   const [tierPrice, setTierPrice] = useState("");
   const [newVehicleCode, setNewVehicleCode] = useState("");
@@ -120,6 +119,8 @@ export default function AdminVehiclesPage() {
     setEditTypePrice(String(t.pricePerTrip));
     setEditTypeDurationMode(t.durationMode);
     setEditTypePricingMode(t.pricingMode);
+    setTierPassengers("");
+    setTierPrice("");
   }
 
   async function saveEditType(id: string) {
@@ -141,11 +142,11 @@ export default function AdminVehiclesPage() {
     loadAll();
   }
 
-  async function addTier(e: React.FormEvent) {
+  async function addTier(e: React.FormEvent, typeId: string) {
     e.preventDefault();
     setError(null);
-    if (!tierTypeId) return;
-    const res = await fetch(`/api/admin/vehicle-types/${tierTypeId}/passenger-prices`, {
+    if (!tierPassengers || !tierPrice) return;
+    const res = await fetch(`/api/admin/vehicle-types/${typeId}/passenger-prices`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passengers: Number(tierPassengers), price: Number(tierPrice) }),
@@ -288,6 +289,56 @@ export default function AdminVehiclesPage() {
     });
   }, [viewingQr, qrImages]);
 
+  function TierEditor({ type }: { type: VehicleType }) {
+    return (
+      <div className="rounded-md border border-dashed border-border p-2">
+        <p className="mb-1.5 text-xs font-medium text-foreground/60">Bậc giá theo số người</p>
+        {type.passengerPrices.length > 0 && (
+          <ul className="mb-2 flex flex-col divide-y divide-border">
+            {type.passengerPrices
+              .slice()
+              .sort((a, b) => a.passengers - b.passengers)
+              .map((tier) => (
+                <li key={tier.id} className="flex items-center justify-between py-1 text-sm">
+                  <span>
+                    {tier.passengers} người — {formatMoney(tier.price)}
+                  </span>
+                  <button
+                    onClick={() => deleteTier(type.id, tier.id)}
+                    className="text-red-600 hover:underline"
+                  >
+                    Xoá
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
+        <form onSubmit={(e) => addTier(e, type.id)} className="flex gap-2">
+          <input
+            value={tierPassengers}
+            onChange={(e) => setTierPassengers(e.target.value)}
+            type="number"
+            min={1}
+            placeholder="Số người"
+            className="w-24 rounded-md border border-border px-2 py-1.5 text-sm"
+            required
+          />
+          <input
+            value={tierPrice}
+            onChange={(e) => setTierPrice(e.target.value)}
+            type="number"
+            placeholder="Giá"
+            className="w-28 rounded-md border border-border px-2 py-1.5 text-sm"
+            required
+          />
+          <button className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+            Thêm
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   function downloadQr(vehicle: Vehicle) {
     const dataUrl = qrImages[vehicle.id];
     if (!dataUrl) return;
@@ -349,6 +400,7 @@ export default function AdminVehiclesPage() {
                       <option value="flat">Giá cố định</option>
                       <option value="passengers">Giá theo số người</option>
                     </select>
+                    {editTypePricingMode === "passengers" && <TierEditor type={t} />}
                     <div className="flex gap-3">
                       <button onClick={() => saveEditType(t.id)} className="text-sm text-success">
                         Lưu
@@ -430,14 +482,17 @@ export default function AdminVehiclesPage() {
                     </td>
                     <td className="py-2">
                       {isEditing ? (
-                        <select
-                          value={editTypePricingMode}
-                          onChange={(e) => setEditTypePricingMode(e.target.value)}
-                          className="rounded-md border border-border px-2 py-1 text-sm"
-                        >
-                          <option value="flat">Giá cố định</option>
-                          <option value="passengers">Giá theo số người</option>
-                        </select>
+                        <div className="flex flex-col gap-2">
+                          <select
+                            value={editTypePricingMode}
+                            onChange={(e) => setEditTypePricingMode(e.target.value)}
+                            className="rounded-md border border-border px-2 py-1 text-sm"
+                          >
+                            <option value="flat">Giá cố định</option>
+                            <option value="passengers">Giá theo số người</option>
+                          </select>
+                          {editTypePricingMode === "passengers" && <TierEditor type={t} />}
+                        </div>
                       ) : t.pricingMode === "passengers" ? (
                         "Theo số người"
                       ) : (
@@ -522,91 +577,8 @@ export default function AdminVehiclesPage() {
           </button>
         </form>
         <p className="mt-2 text-xs text-foreground/60">
-          Chọn &quot;Giá theo số người&quot; thì cấu hình bậc giá cụ thể ở mục &quot;Giá theo số người&quot; bên dưới.
+          Chọn &quot;Giá theo số người&quot; rồi bấm &quot;Sửa&quot; loại xe đó để cấu hình các bậc giá cụ thể.
         </p>
-      </section>
-
-      {/* Giá theo số người */}
-      <section className="rounded-lg border border-border bg-white p-4">
-        <h2 className="mb-1 font-medium">Giá theo số người</h2>
-        <p className="mb-3 text-sm text-foreground/60">
-          Áp dụng cho loại xe có &quot;Chế độ giá” = &quot;Giá theo số người&quot;, VD ATV: 1 người 400.000đ, 2 người 600.000đ.
-        </p>
-
-        <div className="mb-3 flex flex-col gap-3">
-          {types
-            .filter((t) => t.pricingMode === "passengers")
-            .map((t) => (
-              <div key={t.id} className="rounded-md border border-border p-3">
-                <p className="mb-2 font-medium">{t.name}</p>
-                {t.passengerPrices.length === 0 ? (
-                  <p className="text-sm text-foreground/60">Chưa có bậc giá nào.</p>
-                ) : (
-                  <ul className="flex flex-col divide-y divide-border">
-                    {t.passengerPrices
-                      .slice()
-                      .sort((a, b) => a.passengers - b.passengers)
-                      .map((tier) => (
-                        <li key={tier.id} className="flex items-center justify-between py-1.5 text-sm">
-                          <span>
-                            {tier.passengers} người — {formatMoney(tier.price)}
-                          </span>
-                          <button
-                            onClick={() => deleteTier(t.id, tier.id)}
-                            className="text-red-600 hover:underline"
-                          >
-                            Xoá
-                          </button>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          {types.filter((t) => t.pricingMode === "passengers").length === 0 && (
-            <p className="text-sm text-foreground/60">
-              Chưa có loại xe nào dùng chế độ giá theo số người.
-            </p>
-          )}
-        </div>
-
-        <form onSubmit={addTier} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <select
-            value={tierTypeId}
-            onChange={(e) => setTierTypeId(e.target.value)}
-            className="rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info"
-            required
-          >
-            <option value="">Chọn loại xe</option>
-            {types
-              .filter((t) => t.pricingMode === "passengers")
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-          </select>
-          <input
-            value={tierPassengers}
-            onChange={(e) => setTierPassengers(e.target.value)}
-            type="number"
-            min={1}
-            placeholder="Số người (VD: 1)"
-            className="rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info sm:w-36"
-            required
-          />
-          <input
-            value={tierPrice}
-            onChange={(e) => setTierPrice(e.target.value)}
-            type="number"
-            placeholder="Giá (VD: 400000)"
-            className="rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-info sm:w-36"
-            required
-          />
-          <button className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-            Thêm/Cập nhật bậc giá
-          </button>
-        </form>
       </section>
 
       {/* Xe */}
